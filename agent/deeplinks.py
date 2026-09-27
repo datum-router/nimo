@@ -53,12 +53,19 @@ def enumerate_targets(apk_path: str) -> dict:
         for act in info.actions:
             if act == VIEW:
                 continue  # covered by deeplink/mime targets
-            argv = ["-a", act]
             cats = [c for c in info.categories
                     if c not in ("android.intent.category.DEFAULT",)]
-            for c in cats:
-                argv += ["-c", c]
-            add("action", argv, f"custom action {act} -> {info.name}")
+            # fire the bare action AND action+type variants: an EDIT
+            # without its declared mime type never matches the editor's
+            # filter (it either resolves nowhere or to the wrong app)
+            variants = [[]] + [["-t", m] for m in info.mime_types]
+            for extra in variants:
+                argv = ["-a", act] + extra
+                for c in cats:
+                    argv += ["-c", c]
+                typed = f" -t {extra[1]}" if extra else ""
+                add("action", argv,
+                    f"custom action {act}{typed} -> {info.name}")
 
         for mime in info.mime_types:
             add("mime", ["-a", VIEW, "-t", mime],

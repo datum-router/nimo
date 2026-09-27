@@ -494,11 +494,20 @@ class Crawler:
                         break
                 break  # one extra edge input per field is enough per screen
 
-        # 2. clickable elements, breadth-first
+        # 2. clickable elements, breadth-first — but creation/navigation
+        # affordances first: editor screens (NoteEdit etc.) only open with
+        # real in-app data, so "new/add" has to be tapped before anything
+        # that merely dismisses or idles
         try:
             elements = device.dump_ui()
         except device.DeviceError:
             return
+        NAV_FIRST = ("new", "add", "create", "compose", "write", "+",
+                     "open", "search", "menu", "more")
+        def _nav_rank(e: dict) -> int:
+            lab = (e.get("label") or "").lower()
+            return 0 if any(k in lab for k in NAV_FIRST) else 1
+        elements = sorted(elements, key=_nav_rank)
         for e in elements:
             if self._over_budget():
                 return
