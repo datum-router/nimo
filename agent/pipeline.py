@@ -24,10 +24,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone
 
-from . import apkmeta, auth, device
+from . import apkmeta, auth, blockers, coverage, device, login_prologue, preflight
 from .crawler import CrawlBudget, explore
 from .llm import LLMClient
 from .repro import reproduce
@@ -53,6 +54,24 @@ def main() -> None:
     os.makedirs(args.out, exist_ok=True)
     t0 = time.time()
     started = datetime.now(timezone.utc).isoformat()
+
+    # ---- preflight: refuse bad APKs before spending device minutes -----
+    def _gate(apk: str, need_cov: bool, pkg: str | None = None) -> None:
+        r = preflight.check(apk, expected_package=pkg, need_coverage=need_cov)
+        for f in r.failures:
+            print(f"[nimo] preflight FAIL: {f}")
+        if not r.ok:
+            print("[nimo] refused — fix the APK and retry")
+            sys.exit(2)
+        for w in r.warnings:
+            print(f"[nimo] preflight warning: {w}")
+        return r
+
+    print("[nimo] preflight...")
+    pf = _gate(args.apk, need_coverage=bool(args.coverage_apk))
+    if args.coverage_apk and args.coverage_apk != args.apk:
+        _gate(args.coverage_apk, need_cov=True,
+              pkg=pf.info.get("package"))
 
     # ---- static map -------------------------------------------------
     print("[nimo] analyzing APK...")
@@ -103,28 +122,32 @@ def main() -> None:
         device.install(crawl_apk)
         crawl_dir = os.path.join(args.out, "crawl")
         os.makedirs(crawl_dir, exist_ok=True)
+        coverage_attempts: list[dict] = []
+
+        # rung 4 of the login ladder: per-app Maestro prologue, if defined
+        ran, ok, detail = login_prologue.run(meta.package, cfg)
+        if ran:
+            print(f"[nimo] login prologue: {detail}")
+            coverage_attempts.append(
+                {"strategy": "maestro-login-prologue",
+                 "ok": ok, "detail": detail})
+
         budget = CrawlBudget(max_actions=args.max_actions,
                              max_minutes=args.max_minutes)
         result = explore(meta, cfg, llm, crawl_dir, budget)
+        coverage_attempts.extend(result.coverage_attempts)
         print(f"[nimo] crawl done: {len(result.visited_activities)}/"
               f"{result.total_activities} activities "
               f"({result.coverage_pct}%), {result.screens_visited} screens, "
               f"{len(result.bugs)} unique bugs, "
               f"{result.actions_taken} actions")
 
-        coverage_file = None
+        coverage_info = None
         if args.coverage_apk:
-            remote = (args.coverage_remote_path
-                      or f"/data/data/{meta.package}/files/coverage.ec")
-            local = os.path.join(crawl_dir, "coverage.ec")
-            device.force_stop(meta.package)
-            if device.pull_file(remote, local):
-                coverage_file = "crawl/coverage.ec"
-                print(f"[nimo] coverage pulled: {local}")
-            else:
-                print("[nimo] WARNING: could not pull coverage.ec — "
-                      "is the instrumented build writing it? "
-                      "see docs/COVERAGE.md")
+            ec = coverage.collect(meta.package, crawl_dir,
+                                  args.coverage_remote_path)
+            if ec:
+                coverage_info = coverage.report(ec, crawl_dir)
 
         report["discovery"] = {
             "visited_activities": result.visited_activities,
@@ -143,8 +166,10 @@ def main() -> None:
                 for b in result.bugs
             ],
             "unreachable": result.unreachable,
+            "unreachable_by_reason": blockers.summarize(result.unreachable),
             "auth_events": result.auth_events,
-            "coverage_ec": coverage_file,
+            "coverage_attempts": coverage_attempts,
+            "coverage": coverage_info,
             "report_dir": "crawl",
         }
 

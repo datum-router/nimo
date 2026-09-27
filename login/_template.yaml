@@ -1,0 +1,23 @@
+# Template: per-app login prologue for nimo.
+# Copy to login/<package>.yaml and fill in YOUR app's selectors.
+# Credentials arrive as ${USERNAME} / ${PASSWORD} env vars — never hardcode them.
+appId: REPLACE_WITH_PACKAGE   # e.g. com.example.shop
+---
+# Wait for the login screen (adjust the text to your app)
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 15000
+# Fill credentials — use text/resourceId selectors matching your app
+- tapOn:
+    text: "Email"
+- inputText: "${USERNAME}"
+- tapOn:
+    text: "Password"
+- inputText: "${PASSWORD}"
+- hideKeyboard
+- tapOn:
+    text: "Sign in"
+# Confirm we left the login screen (nimo also verifies this itself)
+- extendedWaitUntil:
+    notVisible: "Sign in"
+    timeout: 15000

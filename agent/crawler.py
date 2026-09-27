@@ -26,7 +26,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from . import apkmeta, auth, device, triage
+from . import apkmeta, auth, blockers, device, triage
 from .llm import LLMClient
 
 FIELD_VALUES_PROMPT = """You are helping an automated app-testing agent. \
@@ -61,6 +61,7 @@ class CrawlResult:
     unreachable: list[dict] = field(default_factory=list)
     auth_events: list[dict] = field(default_factory=list)
     deep_links_fired: int = 0
+    coverage_attempts: list[dict] = field(default_factory=list)
 
     @property
     def coverage_pct(self) -> float:
@@ -123,6 +124,8 @@ class Crawler:
         self.deadline = time.time() + budget.max_minutes * 60
         self.shot_n = 0
         self.launch_failures: dict[str, str] = {}
+        self.redirects: dict[str, str] = {}      # requested -> landed activity
+        self.login_redirects: set[str] = set()    # requested, landed on login
 
     # ---- helpers -----------------------------------------------------
     def _log(self, msg: str) -> None:
@@ -201,21 +204,45 @@ class Crawler:
                     break
                 self._fire_deep_link(link)
 
-        # anything never visited is unreachable — say why, honestly
+        # anything never visited is unreachable — labeled, never silent
         visited = set(self.result.visited_activities)
+        budget_out = self._over_budget()
         for a in self.meta.activities:
             if a.name not in visited:
                 if a.name in self.launch_failures:
-                    reason = f"direct launch failed ({self.launch_failures[a.name]}); never surfaced in UI either"
+                    entry = blockers.label(
+                        a.name, "launch-failed", self.launch_failures[a.name])
+                elif a.name in self.login_redirects:
+                    entry = blockers.label(
+                        a.name, "login-wall",
+                        f"direct launch redirected to {self.redirects[a.name]}")
                 elif not a.exported:
-                    reason = "not exported and no intent filters; only reachable via in-app UI (never surfaced)"
+                    entry = blockers.label(a.name, "not-exported")
+                elif budget_out:
+                    entry = blockers.label(a.name, "budget-exhausted")
                 else:
-                    reason = "never surfaced during crawl (budget exhausted or unreachable flow)"
-                self.result.unreachable.append(
-                    {"activity": a.name, "reason": reason})
+                    entry = blockers.label(a.name, "no-route")
+                self.result.unreachable.append(entry)
 
+        self.result.coverage_attempts.append({
+            "strategy": "direct-launch + BFS crawl + auth ladder",
+            "activities_visited": len(self.result.visited_activities),
+            "screens_visited": self.result.screens_visited,
+            "login_redirects": len(self.login_redirects),
+            "note": "redirected launches are NOT counted as visited",
+        })
         self.result.bugs = triage.dedupe(self.raw_crashes)
         return self.result
+
+    @staticmethod
+    def _same_activity(requested: str, current: str | None) -> bool:
+        """Did the launch actually land on the requested activity?"""
+        if not current:
+            return True  # dumpsys parse failed — assume we arrived (old path)
+        cur_cls = current.split("/")[-1].lstrip(".")
+        req_cls = requested.split(".")[-1]
+        return cur_cls == req_cls or cur_cls == requested or \
+            requested.endswith("." + cur_cls)
 
     def _visit_activity(self, activity: str) -> None:
         pkg = self.meta.package
@@ -237,6 +264,19 @@ class Crawler:
         cur = device.current_activity()
         if cur:
             self._enqueue(cur)
+        if not self._same_activity(activity, cur):
+            # Redirected elsewhere — do NOT count as visited. Counting it
+            # inflated coverage. Often a login wall intercepting the launch.
+            self.redirects[activity] = cur or "unknown"
+            self._log(f"{activity} redirected to {cur} — not counted")
+            try:
+                els = device.dump_ui()
+            except device.DeviceError:
+                els = []
+            if els and auth.looks_like_login(els):
+                self.login_redirects.add(activity)
+                self._log(f"{activity} sits behind a login wall")
+            return
         if activity not in self.result.visited_activities:
             self.result.visited_activities.append(activity)
         self._log(f"visiting {activity} "

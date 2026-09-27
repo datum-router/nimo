@@ -6,6 +6,24 @@ on:
     branches: [main]
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install androguard
+        run: pip install -q androguard
+
+      - name: Preflight all demo APKs (no emulator needed)
+        run: |
+          for apk in demo/*/app.apk; do
+            python3 -m agent.preflight "$apk" || exit 2
+          done
+
   repro:
     runs-on: macos-14
     strategy:

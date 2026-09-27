@@ -74,6 +74,21 @@ jobs:
           pip install -q androguard
 
       # ---- device: redroid if binder exists, emulator otherwise ----
+      # ---- test inputs (before device boot: preflight fails fast) ----
+      - name: Fetch APK
+        run: |
+          SRC="${{ inputs.apk_source }}"
+          if [[ "$SRC" == http* ]]; then
+            curl -fsSL --max-time 300 -o app.apk "$SRC"
+          else
+            cp "demo/$SRC/app.apk" app.apk
+          fi
+          python3 -c "import zipfile; z=zipfile.ZipFile('app.apk'); print('apk ok:', len(z.namelist()), 'entries')"
+
+      - name: Preflight APK
+        run: |
+          python3 -m agent.preflight app.apk
+
       - name: Probe for binder (redroid requirement)
         id: binder
         run: |
@@ -120,24 +135,19 @@ jobs:
             echo "ANDROID_SERIAL=emulator-5554" >> "$GITHUB_ENV"
             adb -s emulator-5554 wait-for-device
 
-      # ---- test inputs ----
-      - name: Fetch APK
-        run: |
-          SRC="${{ inputs.apk_source }}"
-          if [[ "$SRC" == http* ]]; then
-            curl -fsSL --max-time 300 -o app.apk "$SRC"
-          else
-            cp "demo/$SRC/app.apk" app.apk
-          fi
-          python3 -c "import zipfile; z=zipfile.ZipFile('app.apk'); print('apk ok:', len(z.namelist()), 'entries')"
-
-      - name: Write bug report
+      # ---- live progress channel (branch `live`, dir run-<id>) ----
         if: inputs.bug_report != ''
         run: |
           printf '%s' "${{ inputs.bug_report }}" > bug_report.md
           wc -l bug_report.md
 
       # ---- live progress channel (branch `live`, dir run-<id>) ----
+      - name: Write bug report
+        if: inputs.bug_report != ''
+        run: |
+          printf '%s' "${{ inputs.bug_report }}" > bug_report.md
+          wc -l bug_report.md
+
       - name: Prepare live branch
         run: |
           rm -rf /tmp/live && mkdir -p /tmp/live && cd /tmp/live

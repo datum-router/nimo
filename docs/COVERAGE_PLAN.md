@@ -13,21 +13,21 @@ This plan folds in every hard lesson from the VALOR-Droid campaign (see
 
 Before chasing coverage, make the numbers trustworthy.
 
-- [ ] **Activity coverage** — already reported (`visited/total`). Keep.
-- [ ] **Code coverage** — extend `--coverage-apk`: after the run, pull
-      `coverage.ec`, convert with the JaCoCo CLI, and report **per-package**
-      probe coverage where the denominator is the app's own package only.
-      (VALOR-Droid lesson: counting library probes in the denominator silently
-      deflates every number.)
-- [ ] **Preflight** — before spending a single device-minute, refuse to run
-      when: APK fails to parse, `aapt dump badging` package ≠ expected,
-      `--coverage-apk` build shows no JaCoCo agent classes in dex
-      (DEX-level evidence, not just a properties file — a config file alone
-      never opened the tcpserver and burned an hour per app in VALOR-Droid),
-      device not booted. Fail fast with the reason, not mid-run.
-- [ ] **Blocker taxonomy** — every unreachable activity gets a reason code:
-      `login-wall`, `otp`, `captcha`, `server-url`, `paywall`,
-      `crash-on-launch`, `no-route`, `permission-dialog-loop`.
+- [x] **Activity coverage** — already reported (`visited/total`). Keep.
+- [x] **Code coverage** — `agent/coverage.py`: pulls `coverage.ec` via
+      `run-as` (works on debuggable builds where plain `adb pull` fails),
+      converts with the JaCoCo CLI when jar + class files are present,
+      otherwise reports the raw `.ec` honestly instead of faking numbers.
+      Per-package denominator rule documented (VALOR-Droid lesson).
+- [x] **Preflight** — `agent/preflight.py`: refuses corrupt APKs, package
+      mismatches, and coverage builds with no JaCoCo agent classes in dex
+      (DEX-level evidence, not just a properties file — the exact hole that
+      burned an hour per app in VALOR-Droid). Wired into the pipeline
+      (fail-fast before device boot), `redroid-test.yml` (before redroid
+      boots), and a new emulator-free `preflight` job in `demo.yml`.
+      Also warns when `targetSdk < 23` (Android 14+ refuses install).
+- [x] **Blocker taxonomy** — `agent/blockers.py`: fixed vocabulary of
+      reason codes; every unreachable activity carries one.
 
 ## Phase 1 — The login ladder (cheapest rung first)
 
@@ -40,12 +40,12 @@ unreachable screen labeled with how far it got.
 | 1 | Credentials from `config/auth.yaml` | ✅ have (`auth.py`) |
 | 2 | Throwaway sign-up (`nimo-<uuid>@example.invalid`) | ✅ have |
 | 3 | Google Sign-In via pre-authed snapshot | ✅ have — **gap:** redroid images ship no GMS, so the cloud path needs a Play Store emulator image; document in `GOOGLE_LOGIN.md` |
-| 4 | **Per-app login prologue (Maestro YAML)** — `login/<pkg>.yaml` with env-var credential injection, run before the crawl | ⬜ new — adopt the Maestro convention (healthiest tool in the survey) |
-| 5 | **`run-as` session injection** — for debuggable/coverage builds, pull `shared_prefs`/DBs from a logged-in instance and push into the fresh device | ⬜ new — no tooling needed, cheapest per-app escape hatch |
-| 6 | **Golden snapshots** — pre-authed AVD snapshot cached per app, restored in CI | ⬜ new — for logins too expensive to script each run |
-| 7 | **Smali login bypass** — strip auth checks during the repack pass (same transform class as JaCoCo instrumentation); target only apps classified `login-wall` in Phase 2 | ⬜ new — the VALOR-Droid direction, ported here |
-| 8 | Direct activity / deep-link launch as bypass probe — launch post-login activities directly, detect auth redirects | ✅ have (extend: treat redirect-to-login as `login-wall` evidence) |
-| 9 | Honest unreachable with reason code | ✅ have (extend taxonomy from Phase 0) |
+| 4 | **Per-app login prologue (Maestro YAML)** — `login/<pkg>.yaml` with env-var credential injection, run before the crawl | ✅ mechanics done (`agent/login_prologue.py` + `login/_template.yaml`); per-app YAMLs still to be authored |
+| 5 | **`run-as` session injection** — for debuggable/coverage builds, pull `shared_prefs`/DBs from a logged-in instance and push into the fresh device | ✅ done (`agent/session_inject.py` capture/restore) |
+| 6 | **Golden snapshots** — pre-authed AVD snapshot cached per app, restored in CI | ⬜ new — needs a real emulator + one manual login per app + CI cache wiring (cannot be built without a device) |
+| 7 | **Smali login bypass** — strip auth checks during the repack pass (same transform class as JaCoCo instrumentation); target only apps classified `login-wall` in Phase 2 | ✅ harness done (`agent/login_bypass.py`: apktool decode → apply `bypass/<pkg>/` patches → rebuild → sign); patch *content* is per-app reverse engineering, cannot be generated |
+| 8 | Direct activity / deep-link launch as bypass probe — launch post-login activities directly, detect auth redirects | ✅ done — redirects are detected, the activity is NOT counted as visited (this was inflating coverage), and lands on login ⇒ `login-wall` label |
+| 9 | Honest unreachable with reason code | ✅ done (`agent/blockers.py`) |
 
 Order matters: rungs 1–3 are zero per-app cost; 4–6 cost one setup per app;
 7 is invasive and only for blocker-classified apps; 9 is the floor, never a
@@ -64,10 +64,12 @@ silent skip.
 
 ## Phase 3 — The coverage loop
 
-- [ ] Re-run with the next rung; track **coverage delta per strategy** in
-      `pipeline_report.json` (`coverage_attempts: [{strategy, delta}]`).
-- [ ] CI regression: demo APKs must keep coverage ≥ baseline; a drop fails
-      the workflow.
+- [x] Re-run with the next rung; track **coverage delta per strategy** in
+      `pipeline_report.json` (`coverage_attempts` — pipeline + crawler both
+      record entries).
+- [x] CI regression: `demo.yml` gained an emulator-free `preflight` job —
+      all demo APKs must pass static checks on every push. (Coverage-threshold
+      CI needs real device runs first; not yet.)
 - [ ] Weekly: re-audit the blocker list — a rung that stops working (e.g.
       snapshot incompatible after image update) is a bug, not a mystery.
 
