@@ -1,0 +1,46 @@
+name: demo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  repro:
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        demo:
+          - { dir: 01-notepad,      package: bander.notepad }
+          - { dir: 02-atimetracker, package: com.markuspage.android.atimetracker }
+          - { dir: 03-asciicam,     package: com.dozingcatsoftware.asciicam }
+          - { dir: 04-comicviewer,  package: net.androidcomics.acv }
+          - { dir: 05-kiss,         package: fr.neamar.kiss.debug }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run repro agent on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: default
+          script: |
+            adb wait-for-device
+            python -m agent.repro \
+              --apk demo/${{ matrix.demo.dir }}/app.apk \
+              --package ${{ matrix.demo.package }} \
+              --bug demo/${{ matrix.demo.dir }}/bug_report.md \
+              --out out/${{ matrix.demo.dir }}/
+
+      - name: Upload repro report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repro-${{ matrix.demo.dir }}
+          path: out/${{ matrix.demo.dir }}/
