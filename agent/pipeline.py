@@ -4,9 +4,9 @@ Two paths, one engine:
 
   Path A  --bug report.md        targeted reproduction of a reported bug
   Path B  (default)              systematic discovery: static map of the APK
-                                 -> install -> login handling -> BFS crawl of
-                                 every activity, deep link and UI element ->
-                                 crash triage -> coverage report
+                                 -> install -> login handling -> intent sweep ->
+                                 BFS crawl of every activity, deep link and UI
+                                 element -> crash triage -> coverage report
 
 Usage:
     python -m agent.pipeline --apk app.apk --out out/run1/
@@ -28,7 +28,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from . import apkmeta, auth, blockers, coverage, device, login_prologue, preflight
+from . import apkmeta, auth, blockers, coverage, deeplinks, device, login_prologue, preflight
 from .crawler import CrawlBudget, explore
 from .llm import LLMClient
 from .repro import reproduce
@@ -124,6 +124,26 @@ def main() -> None:
         os.makedirs(crawl_dir, exist_ok=True)
         coverage_attempts: list[dict] = []
 
+        # intent sweep first: fire every enumerated intent target directly.
+        # Fast (~2s/target), reaches screens no tap sequence can find, and
+        # labels the unreached ones precisely for the coverage report.
+        print("[nimo] intent sweep: firing enumerated intent targets")
+        enum = deeplinks.enumerate_targets(args.apk)
+        sweep = deeplinks.fire_all(meta.package, enum["targets"])
+        sweep_labels = {u["activity"]: u for u in sweep["unreachable"]}
+        by_outcome: dict[str, int] = {}
+        for att in sweep["attempts"]:
+            by_outcome[att["outcome"]] = by_outcome.get(att["outcome"], 0) + 1
+        coverage_attempts.append({
+            "strategy": "intent-sweep",
+            "targets": len(enum["targets"]),
+            "reached": len(sweep["reached"]),
+            "by_outcome": by_outcome,
+        })
+        print(f"[nimo] sweep done: {len(sweep['reached'])} activities "
+              f"reached via intents, "
+              f"{len(sweep['unreachable'])} labeled unreachable")
+
         # rung 4 of the login ladder: per-app Maestro prologue, if defined
         ran, ok, detail = login_prologue.run(meta.package, cfg)
         if ran:
@@ -134,7 +154,8 @@ def main() -> None:
 
         budget = CrawlBudget(max_actions=args.max_actions,
                              max_minutes=args.max_minutes)
-        result = explore(meta, cfg, llm, crawl_dir, budget)
+        result = explore(meta, cfg, llm, crawl_dir, budget,
+                         seeds=sweep["reached"], sweep_labels=sweep_labels)
         coverage_attempts.extend(result.coverage_attempts)
         print(f"[nimo] crawl done: {len(result.visited_activities)}/"
               f"{result.total_activities} activities "
@@ -155,6 +176,11 @@ def main() -> None:
             "screens_visited": result.screens_visited,
             "actions_taken": result.actions_taken,
             "deep_links_fired": result.deep_links_fired,
+            "intent_sweep": {
+                "targets": len(enum["targets"]),
+                "reached": sweep["reached"],
+                "attempts": sweep["attempts"],
+            },
             "bugs": [
                 {"fingerprint": b.fingerprint,
                  "exception": b.exception,
