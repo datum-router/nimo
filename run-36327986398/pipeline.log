@@ -1,0 +1,16 @@
+[nimo] preflight...
+[nimo] preflight warning: targets API 11: Android 14+ refuses to install apps targeting < 23 — use android_version 13 or lower
+[nimo] analyzing APK...
+[nimo] Notepad (bander.notepad v1.06)
+[nimo] map: 7 activities, 0 deep links, 1 permissions
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/runner/work/nimo/nimo/agent/pipeline.py", line 211, in <module>
+    main()
+  File "/home/runner/work/nimo/nimo/agent/pipeline.py", line 84, in main
+    serial = device.check_connected()
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/nimo/nimo/agent/device.py", line 42, in check_connected
+    raise DeviceError("no Android device/emulator connected")
+agent.device.DeviceError: no Android device/emulator connected

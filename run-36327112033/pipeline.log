@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/runner/work/nimo/nimo/agent/pipeline.py", line 185, in <module>
+    main()
+  File "/home/runner/work/nimo/nimo/agent/pipeline.py", line 71, in main
+    pf = _gate(args.apk, need_coverage=bool(args.coverage_apk))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: main.<locals>._gate() got an unexpected keyword argument 'need_coverage'
+[nimo] preflight...

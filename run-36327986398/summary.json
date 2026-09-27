@@ -1,0 +1,1 @@
+{"verdict": "failed", "customer_note": "The test run did not produce a report. Check the Actions log.", "device": {"android_version": "13.0.0", "arch": "amd64", "runtime": "unknown"}, "bugs": [], "unreachable": [], "coverage_pct": 0, "visited": 0, "total": 0}
