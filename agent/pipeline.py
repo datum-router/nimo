@@ -1,0 +1,160 @@
+"""nimo pipeline — every corner of the APK, tested.
+
+Two paths, one engine:
+
+  Path A  --bug report.md        targeted reproduction of a reported bug
+  Path B  (default)              systematic discovery: static map of the APK
+                                 -> install -> login handling -> BFS crawl of
+                                 every activity, deep link and UI element ->
+                                 crash triage -> coverage report
+
+Usage:
+    python -m agent.pipeline --apk app.apk --out out/run1/
+    python -m agent.pipeline --apk app.apk --bug report.md --auth auth.yaml --out out/run2/
+    python -m agent.pipeline --apk app.apk --coverage-apk app-jacoco.apk --out out/run3/
+
+The --coverage-apk is a JaCoCo-instrumented build of the same app (built
+with the VALOR-Droid toolchain, see docs/COVERAGE.md). When given, the
+crawl runs against the instrumented APK and the pipeline pulls coverage.ec
+afterwards, so the report carries real code coverage, not just screens.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import time
+from datetime import datetime, timezone
+
+from . import apkmeta, auth, device
+from .crawler import CrawlBudget, explore
+from .llm import LLMClient
+from .repro import reproduce
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="nimo full-APK test pipeline")
+    ap.add_argument("--apk", required=True, help="APK under test")
+    ap.add_argument("--bug", default=None, help="bug report markdown (Path A)")
+    ap.add_argument("--auth", default=None, help="auth config file (key: value)")
+    ap.add_argument("--out", required=True, help="output directory")
+    ap.add_argument("--coverage-apk", default=None,
+                    help="JaCoCo-instrumented APK for code coverage")
+    ap.add_argument("--coverage-remote-path", default=None,
+                    help="remote coverage.ec path "
+                         "(default /data/data/<pkg>/files/coverage.ec)")
+    ap.add_argument("--max-minutes", type=int, default=30)
+    ap.add_argument("--max-actions", type=int, default=400)
+    ap.add_argument("--repro-only", action="store_true",
+                    help="only run Path A (bug reproduction), skip discovery")
+    args = ap.parse_args()
+
+    os.makedirs(args.out, exist_ok=True)
+    t0 = time.time()
+    started = datetime.now(timezone.utc).isoformat()
+
+    # ---- static map -------------------------------------------------
+    print("[nimo] analyzing APK...")
+    meta = apkmeta.analyze(args.apk)
+    print(f"[nimo] {meta.app_name or meta.package} "
+          f"({meta.package} v{meta.version})")
+    print(f"[nimo] map: {len(meta.activities)} activities, "
+          f"{sum(len(a.deep_links) for a in meta.activities)} deep links, "
+          f"{len(meta.permissions)} permissions")
+    serial = device.check_connected()
+    print(f"[nimo] device: {serial}")
+
+    llm = LLMClient()
+    cfg = auth.AuthConfig.from_file(args.auth)
+    report: dict = {
+        "tool": "nimo-pipeline",
+        "version": "0.2.0",
+        "started": started,
+        "apk": os.path.basename(args.apk),
+        "package": meta.package,
+        "app": meta.app_name,
+        "version_name": meta.version,
+        "llm": {"base_url": llm.base_url, "model": llm.model},
+        "map": {
+            "activities": [a.name for a in meta.activities],
+            "main_activity": meta.main_activity,
+            "deep_links": [l for a in meta.activities for l in a.deep_links],
+        },
+    }
+
+    # ---- Path A: targeted reproduction ------------------------------
+    if args.bug:
+        print("[nimo] Path A: targeted bug reproduction")
+        device.install(args.apk)
+        repro_dir = os.path.join(args.out, "repro")
+        rep = reproduce(args.apk, meta.package, args.bug, repro_dir)
+        report["repro"] = {
+            "verdict": rep["verdict"],
+            "steps_taken": rep["steps_taken"],
+            "report_dir": "repro",
+        }
+        print(f"[nimo] Path A verdict: {rep['verdict']}")
+
+    # ---- Path B: systematic discovery -------------------------------
+    if not args.repro_only:
+        print("[nimo] Path B: systematic discovery crawl")
+        crawl_apk = args.coverage_apk or args.apk
+        device.install(crawl_apk)
+        crawl_dir = os.path.join(args.out, "crawl")
+        os.makedirs(crawl_dir, exist_ok=True)
+        budget = CrawlBudget(max_actions=args.max_actions,
+                             max_minutes=args.max_minutes)
+        result = explore(meta, cfg, llm, crawl_dir, budget)
+        print(f"[nimo] crawl done: {len(result.visited_activities)}/"
+              f"{result.total_activities} activities "
+              f"({result.coverage_pct}%), {result.screens_visited} screens, "
+              f"{len(result.bugs)} unique bugs, "
+              f"{result.actions_taken} actions")
+
+        coverage_file = None
+        if args.coverage_apk:
+            remote = (args.coverage_remote_path
+                      or f"/data/data/{meta.package}/files/coverage.ec")
+            local = os.path.join(crawl_dir, "coverage.ec")
+            device.force_stop(meta.package)
+            if device.pull_file(remote, local):
+                coverage_file = "crawl/coverage.ec"
+                print(f"[nimo] coverage pulled: {local}")
+            else:
+                print("[nimo] WARNING: could not pull coverage.ec — "
+                      "is the instrumented build writing it? "
+                      "see docs/COVERAGE.md")
+
+        report["discovery"] = {
+            "visited_activities": result.visited_activities,
+            "coverage_pct": result.coverage_pct,
+            "screens_visited": result.screens_visited,
+            "actions_taken": result.actions_taken,
+            "deep_links_fired": result.deep_links_fired,
+            "bugs": [
+                {"fingerprint": b.fingerprint,
+                 "exception": b.exception,
+                 "occurrences": b.occurrences,
+                 "first_seen_activity": b.first_seen_activity,
+                 "trail": b.trail,
+                 "screenshot": b.screenshot,
+                 "stack": b.stack}
+                for b in result.bugs
+            ],
+            "unreachable": result.unreachable,
+            "auth_events": result.auth_events,
+            "coverage_ec": coverage_file,
+            "report_dir": "crawl",
+        }
+
+    report["finished"] = datetime.now(timezone.utc).isoformat()
+    report["wall_seconds"] = round(time.time() - t0, 1)
+    with open(os.path.join(args.out, "pipeline_report.json"), "w") as f:
+        json.dump(report, f, indent=2)
+    print(f"[nimo] pipeline report: {args.out}/pipeline_report.json "
+          f"({report['wall_seconds']}s)")
+
+
+if __name__ == "__main__":
+    main()
