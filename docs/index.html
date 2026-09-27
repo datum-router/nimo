@@ -144,6 +144,7 @@
       <a href="#pipeline">Pipeline</a>
       <a href="#how">How it works</a>
       <a href="#demos">Demos</a>
+      <a href="run.html" style="color:var(--txt);border:1px solid var(--acc);border-radius:99px;padding:7px 16px">▶ Run a test</a>
       <a href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">GitHub</a>
     </div>
     <a class="btn btn-acc btn-sm" href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">Get started</a>
@@ -377,6 +378,8 @@
      a:"Reproduce mode: hand nimo the bug report your customer sent you plus the APK. It drives the app through the report and returns a verdict — reproduced or not_reproduced — with the step-by-step trace, screenshots, and the logcat crash. A 'reproduced' verdict on a crash requires a real FATAL EXCEPTION."},
     {k:['pipeline','every corner','systematic','full test','bfs','crawl'],
      a:"The nimo pipeline (python -m agent.pipeline) is the systematic path: it parses the APK manifest into a map of every activity and deep link, launches each one directly, exercises every button and field breadth-first, handles login walls, dedupes crashes by stack fingerprint, and reports honest coverage — like 'visited 21 of 23 screens' — with unreachable screens explained."},
+    {k:['run a test','try it','test my app','cloud test','run page'],
+     a:"You can run nimo in the cloud right from the site: open the 'Run a test' page, pick an Android version and architecture, choose a demo APK or paste your APK's https URL, optionally add a bug report, and hit run. It boots Android (redroid, or the emulator as fallback) on GitHub Actions, streams progress live, and finishes with a verdict, a coverage diagram, and a plain-language note."},
     {k:['google','sign in with google','oauth','login'],
      a:"For Google Sign-In, nimo uses a pre-authed emulator snapshot: a human signs the test Google account in once on a Play Store emulator image, saves the snapshot, and every run after that boots already signed in. The agent then taps the Google button, picks the account, and accepts the consent screen automatically. Details: docs/GOOGLE_LOGIN.md in the repo."},
     {k:['how does it work','how it works','how do','process','steps'],
