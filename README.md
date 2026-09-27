@@ -1,27 +1,39 @@
 # nimo
 
-**Send a bug report, get back a verified reproduction.**
+**You ship fast. We find what broke.**
 
-nimo is an agent that takes a plain-text bug report and an Android APK,
-drives the app on a real device or emulator, and returns a verdict —
-`reproduced` or `not_reproduced` — with the exact steps, screenshots, and
-the crash log. No SDK to integrate, no instrumentation, no account needed.
+People are building apps quicker than ever — with or without AI slop. nimo
+is the agent that catches what slipped through, with two modes:
 
-The LLM backend defaults to [Pollinations.ai](https://pollinations.ai):
-free, anonymous, OpenAI-compatible. Swap in any OpenAI-compatible endpoint
-(Gemini, OpenAI, Groq, …) with three env vars.
+- **Reproduce** — send the bug report your customer gave you plus the APK,
+  get back a *verified* reproduction: verdict, step-by-step trace,
+  screenshots, crash log.
+- **Discover** — just the APK. nimo explores the app like a relentless QA
+  engineer, hunts for bugs on its own, and reports everything it finds.
+
+No SDK to integrate, no instrumentation, no account needed. The LLM backend
+defaults to [Pollinations.ai](https://pollinations.ai): free, anonymous,
+OpenAI-compatible. Swap in any OpenAI-compatible endpoint (Gemini, OpenAI,
+Groq, …) with three env vars.
 
 ## Try it in 2 minutes
 
 ```bash
 # needs: python3, adb, one connected device/emulator
+
+# reproduce a reported bug
 python -m agent.repro --apk demo/01-notepad/app.apk \
     --package bander.notepad \
     --bug demo/01-notepad/bug_report.md \
     --out out/01-notepad/
+
+# ...or just hunt for bugs in any APK
+python -m agent.repro --discover --apk demo/01-notepad/app.apk \
+    --package bander.notepad \
+    --out out/discovery/
 ```
 
-→ `out/01-notepad/repro_report.json` + step screenshots.
+→ `out/*/repro_report.json` + step screenshots.
 
 ## The five demos
 
