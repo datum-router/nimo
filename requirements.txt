@@ -1,3 +1,4 @@
 # nimo runs on the standard library only — no pip install needed.
 # Optional, for local development:
 #   ruff   # lint
+androguard>=4.0  # static APK analysis (agent/apkmeta.py)
