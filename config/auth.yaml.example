@@ -1,0 +1,13 @@
+# nimo auth config — copy to auth.yaml and fill in
+# Lines are simple `key: value`. Everything is optional.
+
+# Test account for email/password login screens
+email: tester@example.com
+password: changeme
+
+# Pre-authed Google account on the emulator snapshot (docs/GOOGLE_LOGIN.md)
+google_account: nimo.tester@gmail.com
+
+# If true, the pipeline tries automatic sign-up (throwaway account)
+# when no other login strategy works
+allow_signup: true
