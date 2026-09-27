@@ -71,6 +71,11 @@ silent skip.
 - [x] CI regression: `demo.yml` gained an emulator-free `preflight` job —
       all demo APKs must pass static checks on every push. (Coverage-threshold
       CI needs real device runs first; not yet.)
+- [x] Tarpit recovery (2026-09-27, `agent/tarpit.py` — the Jev pattern):
+      6 consecutive zero-gain screens → one LLM escape consultation
+      (tap/back/swipe_up/type/relaunch, abstention falls back to BACK +
+      foreground reset), max 5 consults per run. The deterministic crawl
+      is the engine; the LLM is a rarely-consulted safety net.
 - [ ] Weekly: re-audit the blocker list — a rung that stops working (e.g.
       snapshot incompatible after image update) is a bug, not a mystery.
 

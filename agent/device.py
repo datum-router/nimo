@@ -79,6 +79,18 @@ def press_back() -> None:
     _run("shell", "input", "keyevent", "4")  # KEYCODE_BACK
 
 
+def screen_size() -> tuple[int, int]:
+    """Device screen resolution, for swipe coordinates."""
+    try:
+        out = _run("shell", "wm", "size")
+        m = re.search(r"(\d+)x(\d+)", out)
+        if m:
+            return int(m.group(1)), int(m.group(2))
+    except DeviceError:
+        pass
+    return (1080, 2400)
+
+
 def screenshot(path: str) -> None:
     p = subprocess.run([ADB, "exec-out", "screencap", "-p"],
                        capture_output=True, timeout=30)

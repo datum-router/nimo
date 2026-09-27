@@ -12,6 +12,11 @@ the static map (agent/apkmeta.py):
      Google Sign-In via the pre-authed snapshot).
   5. Every action is crash-watched via logcat; crashes are fingerprinted
      and deduped by agent/triage.py.
+  6. Tarpit recovery (agent/tarpit.py — the Jev pattern): after several
+     consecutive zero-gain screens the LLM is consulted once for an
+     escape action; abstention falls back to BACK + foreground reset.
+     Consultations are capped per run; the deterministic crawl is the
+     engine, the LLM a rarely-used safety net.
 
 State fingerprinting (activity + visible element signature) keeps it from
 looping. Coverage = activities visited / activities in the manifest —
@@ -26,7 +31,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from . import apkmeta, auth, blockers, device, triage
+from . import apkmeta, auth, blockers, device, tarpit, triage
 from .llm import LLMClient
 
 FIELD_VALUES_PROMPT = """You are helping an automated app-testing agent. \
@@ -135,6 +140,7 @@ class Crawler:
         self.redirects: dict[str, str] = {}      # requested -> landed activity
         self.login_redirects: set[str] = set()    # requested, landed on login
         self.permission_dialogs = 0  # system permission dialogs auto-dismissed
+        self.tarpit = tarpit.TarpitDetector()  # stall detection (Jev pattern)
 
     # ---- helpers -----------------------------------------------------
     def _log(self, msg: str) -> None:
@@ -210,7 +216,17 @@ class Crawler:
         while self.queue and not self._over_budget():
             activity = self.queue.pop(0)
             self.queued.discard(activity)
+            states_before = len(self.visited_states)
+            crashes_before = len(self.raw_crashes)
             self._visit_activity(activity)
+            # tarpit detection: only episodes that actually reached the
+            # activity count — launch failures and redirects are classified
+            # elsewhere, they are not stalls
+            if activity in self.result.visited_activities:
+                gained = (len(self.visited_states) > states_before
+                          or len(self.raw_crashes) > crashes_before)
+                if self.tarpit.observe(gained):
+                    self._escape_tarpit(activity)
 
         # deep links last (they can land anywhere)
         for a in self.meta.activities:
@@ -340,6 +356,80 @@ class Crawler:
                 elements = []
 
         self._explore_screen(activity, elements)
+
+    def _escape_tarpit(self, activity: str) -> None:
+        """A tarpit verdict fired: consult the LLM once for an escape
+        action (the Jev pattern). Abstention — or any failure — falls back
+        to BACK + foreground reset, never breaks the crawl."""
+        self._log(f"TARPIT: {tarpit.STALL_THRESHOLD} zero-gain episodes — "
+                  f"consulting LLM ({self.tarpit.consults_used}/"
+                  f"{self.tarpit.max_consults})")
+        try:
+            elements = device.dump_ui()
+        except device.DeviceError:
+            elements = []
+        esc = tarpit.suggest_escape(
+            elements, self.trail,
+            activity, self.meta.app_name or self.meta.package, self.llm)
+        action = str(esc.get("action") or "abstain").lower()
+        reason = str(esc.get("reason") or "")[:200]
+        self._log(f"tarpit escape: {action} — {reason}")
+        if action != "abstain":
+            self._execute_escape(action, esc, elements)
+        else:
+            device.press_back()
+            device.wait(1.0)
+            device.reset_foreground(self.meta.package)
+        self.tarpit.events.append(
+            {"activity": activity, "action": action, "reason": reason})
+        self.result.coverage_attempts.append({
+            "strategy": "tarpit-escape",
+            "activity": activity,
+            "action": action,
+            "reason": reason,
+        })
+
+    def _execute_escape(self, action: str, esc: dict,
+                        elements: list[dict]) -> None:
+        """Carry out the LLM's chosen escape action. Best-effort: a miss
+        just logs and the deterministic crawl continues."""
+        pkg = self.meta.package
+        try:
+            if action == "tap":
+                target = str(esc.get("target") or "").lower()
+                for e in elements:
+                    if target and target in (e.get("label") or "").lower() \
+                            and e.get("clickable"):
+                        device.tap(e["x"], e["y"])
+                        self.trail.append(f"tarpit tap {e['label']}")
+                        break
+            elif action == "back":
+                device.press_back()
+            elif action == "swipe_up":
+                w, h = device.screen_size()
+                device.swipe(w // 2, int(h * 0.8), w // 2, int(h * 0.2))
+            elif action == "type":
+                target = str(esc.get("target") or "").lower()
+                text = str(esc.get("text") or "")
+                for e in elements:
+                    if "edittext" in (e.get("class") or "").lower() and \
+                            (not target
+                             or target in (e.get("label") or "").lower()):
+                        device.tap(e["x"], e["y"])
+                        device.wait(0.5)
+                        device.input_text(text)
+                        self.trail.append(f"tarpit type {text[:20]!r}")
+                        break
+            elif action == "relaunch":
+                device.force_stop(pkg)
+                device.wait(1.0)
+                if self.meta.main_activity:
+                    device.start_activity(
+                        apkmeta.component(pkg, self.meta.main_activity))
+            device.wait(1.5)
+            self.result.actions_taken += 1
+        except device.DeviceError as exc:
+            self._log(f"tarpit escape action failed: {exc}")
 
     def _explore_screen(self, activity: str, elements: list[dict]) -> None:
         fp = _state_fp(activity, elements)
