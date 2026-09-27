@@ -41,7 +41,13 @@ def build(report_path: str, device: dict, out_path: str) -> dict:
                    else "not_reproduced")
     elif disc:
         mode = "pipeline" if "repro" in rep else "discover"
-        verdict = "bugs_found" if bugs else "clean"
+        if bugs:
+            verdict = "bugs_found"
+        elif visited == 0:
+            # nothing was exercised — calling it "clean" would be a lie
+            verdict = "inconclusive"
+        else:
+            verdict = "clean"
 
     app = rep.get("app") or rep.get("package", "the app")
     n_bugs = len(bugs)
@@ -62,6 +68,12 @@ def build(report_path: str, device: dict, out_path: str) -> dict:
                      f"reasons are listed below.")
         else:
             note += "Every mapped screen was reached."
+    elif verdict == "inconclusive":
+        note = (f"We tried to test {app} on Android {device['android_version']} "
+                f"({device['arch']}, {device['runtime']}) but couldn't exercise "
+                f"any of its {total} screens — every route in was blocked "
+                f"(reasons listed below). No verdict on bugs: nothing was "
+                f"actually tested.")
     elif verdict == "reproduced":
         note = (f"We reproduced the reported bug in {app} on Android "
                 f"{device['android_version']} ({device['arch']}, "
