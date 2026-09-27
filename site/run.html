@@ -326,6 +326,7 @@ async function finish(conclusion){
 function renderResult(s){
   const v = $("r-verdict"), pill = $("r-pill");
   const titles = { bugs_found:["Bugs found", "v-bad"], clean:["Clean — no crashes","v-good"],
+    inconclusive:["Inconclusive — nothing tested","v-warn"],
     reproduced:["Bug reproduced","v-bad"], not_reproduced:["Not reproduced","v-warn"], failed:["Run failed","v-bad"] };
   const [t, c] = titles[s.verdict] || [s.verdict, "v-warn"];
   v.textContent = t; v.className = "verdict " + c;
