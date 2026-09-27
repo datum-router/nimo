@@ -28,7 +28,7 @@ import re
 import uuid
 from dataclasses import dataclass
 
-from . import device
+from . import autofill, device
 from .llm import LLMClient
 
 AUTH_CLASSIFY_PROMPT = """You are helping an automated app-testing agent. Look at \
@@ -189,7 +189,19 @@ def attempt(elements: list[dict], cfg: AuthConfig, llm: LLMClient) -> tuple[bool
             return True, "google sign-in"
         # fall through to other strategies on failure
 
-    # Strategy 2: provided credentials
+    # Strategy 2: nimo AutofillService (OS-level fill; falls back to typing)
+    if kind in ("credentials", "google") and cfg.email and cfg.password:
+        filled, fill_detail = autofill.attempt_fill(elements)
+        if filled:
+            els = device.dump_ui()
+            _tap_label(els, classify(els, llm).get("submit")) or \
+                _tap_label(els, "sign in") or _tap_label(els, "log in")
+            device.wait(2.5)
+            if not classify(device.dump_ui(), llm).get("login"):
+                return True, "autofill login"
+        # fall through to typed credentials when autofill can't fill
+
+    # Strategy 3: provided credentials, typed via adb
     if kind in ("credentials", "google") and cfg.email and cfg.password:
         _fill_label(elements, info.get("email_field"), cfg.email)
         els = device.dump_ui()
@@ -201,7 +213,7 @@ def attempt(elements: list[dict], cfg: AuthConfig, llm: LLMClient) -> tuple[bool
         if not classify(device.dump_ui(), llm).get("login"):
             return True, "credential login"
 
-    # Strategy 3: sign up with a throwaway account
+    # Strategy 4: sign up with a throwaway account
     if cfg.allow_signup:
         els = device.dump_ui()
         info2 = classify(els, llm)
@@ -229,7 +241,7 @@ def attempt(elements: list[dict], cfg: AuthConfig, llm: LLMClient) -> tuple[bool
             if not classify(device.dump_ui(), llm).get("login"):
                 return True, f"signed up as {fake}"
 
-    # Strategy 4: honest failure
+    # Strategy 5: honest failure
     reasons = {
         "otp": "OTP sent to a real phone number — needs a test number or SMS retrieval",
         "credentials": "no working credentials (auth.yaml) and sign-up unavailable",

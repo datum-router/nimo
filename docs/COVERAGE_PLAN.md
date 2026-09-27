@@ -38,6 +38,7 @@ unreachable screen labeled with how far it got.
 | # | Strategy | Status in nimo |
 |---|----------|----------------|
 | 1 | Credentials from `config/auth.yaml` | ✅ have (`auth.py`) |
+| 1b | **nimo AutofillService** — nimo's own `AutofillService` APK installed on every test device, fed vault credentials; OS-level fill of any app's login form (no per-app scripting, no typing flakiness). First mechanism tried for credential logins, falls back to adb typing | ✅ done 2026-09-27 (`agent/autofill/` source + prebuilt `nimo-autofill.apk`, `agent/autofill.py`, wired into `auth.attempt` + `pipeline.py`) |
 | 2 | Throwaway sign-up (`nimo-<uuid>@example.invalid`) | ✅ have |
 | 3 | Google Sign-In via pre-authed snapshot | ✅ have — **gap:** redroid images ship no GMS, so the cloud path needs a Play Store emulator image; document in `GOOGLE_LOGIN.md` |
 | 4 | **Per-app login prologue (Maestro YAML)** — `login/<pkg>.yaml` with env-var credential injection, run before the crawl | ✅ mechanics done (`agent/login_prologue.py` + `login/_template.yaml`); per-app YAMLs still to be authored |

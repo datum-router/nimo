@@ -28,7 +28,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from . import apkmeta, auth, blockers, coverage, deeplinks, device, login_prologue, preflight
+from . import apkmeta, auth, autofill, blockers, coverage, deeplinks, device, login_prologue, preflight
 from .crawler import CrawlBudget, explore
 from .llm import LLMClient
 from .repro import reproduce
@@ -143,6 +143,14 @@ def main() -> None:
         print(f"[nimo] sweep done: {len(sweep['reached'])} activities "
               f"reached via intents, "
               f"{len(sweep['unreachable'])} labeled unreachable")
+
+        # rung 2b of the login ladder: nimo's own AutofillService on-device.
+        # OS-level credential fill for any app's login form; the crawler's
+        # auth.attempt tries it before falling back to adb typing.
+        af_ok, af_detail = autofill.setup(cfg, meta.package)
+        print(f"[nimo] autofill: {af_detail}")
+        coverage_attempts.append(
+            {"strategy": "autofill-setup", "ok": af_ok, "detail": af_detail})
 
         # rung 4 of the login ladder: per-app Maestro prologue, if defined
         ran, ok, detail = login_prologue.run(meta.package, cfg)
