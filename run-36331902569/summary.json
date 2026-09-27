@@ -1,0 +1,55 @@
+{
+  "verdict": "inconclusive",
+  "mode": "discover",
+  "device": {
+    "android_version": "13.0.0",
+    "arch": "amd64",
+    "runtime": "emulator"
+  },
+  "app": "Notepad",
+  "package": "bander.notepad",
+  "coverage_pct": 0.0,
+  "visited": 0,
+  "total": 7,
+  "bugs": [],
+  "unreachable": [
+    {
+      "activity": "bander.notepad.NoteImport",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (adb shell am start -n bander.notepad/.NoteImport failed: Exception occurred while executing 'start':\njava.lang.SecurityE)"
+    },
+    {
+      "activity": "bander.notepad.NoteList",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (no-op (foreground: com.android.launcher3/.uioverrides.QuickstepLauncher}))"
+    },
+    {
+      "activity": "bander.notepad.NoteExport",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (adb shell am start -n bander.notepad/.NoteExport failed: Exception occurred while executing 'start':\njava.lang.SecurityE)"
+    },
+    {
+      "activity": "bander.notepad.NoteSearchResults",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (no-op (foreground: com.android.launcher3/.uioverrides.QuickstepLauncher}))"
+    },
+    {
+      "activity": "bander.notepad.Preferences",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (adb shell am start -n bander.notepad/.Preferences failed: Exception occurred while executing 'start':\njava.lang.Security)"
+    },
+    {
+      "activity": "bander.notepad.TitleEdit",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (no-op (foreground: com.android.launcher3/.uioverrides.QuickstepLauncher}))"
+    },
+    {
+      "activity": "bander.notepad.NoteEdit",
+      "reason_code": "not-exported",
+      "reason": "activity not exported and has no intent filters; only reachable via in-app UI, which never surfaced it (adb shell am start -a android.intent.action.EDIT failed: Exception occurred while executing 'start':\njava.lang.SecurityE)"
+    }
+  ],
+  "wall_seconds": 511.5,
+  "customer_note": "We tried to test Notepad on Android 13.0.0 (amd64, emulator) but couldn't exercise any of its 7 screens \u2014 every route in was blocked (reasons listed below). No verdict on bugs: nothing was actually tested.",
+  "run_artifacts": "out/"
+}
