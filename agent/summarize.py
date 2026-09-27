@@ -28,6 +28,7 @@ def build(report_path: str, device: dict, out_path: str) -> dict:
     if "repro" in rep:
         repro_verdict = rep["repro"]["verdict"]
     disc = rep.get("discovery")
+    sweep = (disc or {}).get("intent_sweep") or {}
     if disc:
         visited = len(disc["visited_activities"])
         total = len(rep["map"]["activities"])
@@ -106,6 +107,11 @@ def build(report_path: str, device: dict, out_path: str) -> dict:
             for b in bugs
         ],
         "unreachable": unreachable,
+        "intent_sweep": {
+            "targets": sweep.get("targets", 0),
+            "reached": len(sweep.get("reached", [])),
+            "attempts": sweep.get("attempts", []),
+        },
         "wall_seconds": rep.get("wall_seconds"),
         "customer_note": note,
         "run_artifacts": "out/",

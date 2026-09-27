@@ -155,36 +155,57 @@ def wait(s: float = 1.0) -> None:
     time.sleep(s)
 
 
+def _raise_on_am_error(out: str, argv: list[str]) -> None:
+    """`am start` exits 0 even when the start fails — the failure is an
+    'Error:' line on stdout. Without this check a failed launch looks
+    exactly like a successful one until the foreground check, and the real
+    reason is lost."""
+    for line in (out or "").splitlines():
+        if line.strip().startswith("Error:"):
+            raise DeviceError(
+                f"adb shell am {' '.join(argv)} failed: {line.strip()}")
+
+
 def start_activity(component: str) -> None:
     """Launch an activity directly, e.g. 'com.pkg/.MainActivity'.
 
     This is how the crawler reaches deep screens without navigating the UI.
     """
-    _run("shell", "am", "start", "-n", component)
+    out = _run("shell", "am", "start", "-n", component)
+    _raise_on_am_error(out, ["start", "-n", component])
 
 
 def start_deep_link(uri: str) -> None:
     """Fire a VIEW intent for a deep-link URI from the manifest."""
-    _run("shell", "am", "start", "-a", "android.intent.action.VIEW",
-         "-d", uri)
+    out = _run("shell", "am", "start", "-a", "android.intent.action.VIEW",
+               "-d", uri)
+    _raise_on_am_error(out, ["start", "-a", "android.intent.action.VIEW",
+                             "-d", uri])
 
 
 def am_start(argv: list[str], timeout: int = 20) -> str:
     """Run a raw `adb shell am start ...` command; return stdout.
 
     `am start` exits 0 even when the intent is denied (SecurityException
-    text lands on stdout), so callers must inspect the output.
+    text lands on stdout), so callers must inspect the output. Exit-0
+    failures ('Error:' lines) raise DeviceError here so the real reason is
+    never silently dropped.
     """
-    return _run("shell", "am", "start", *argv, timeout=timeout)
+    out = _run("shell", "am", "start", *argv, timeout=timeout)
+    _raise_on_am_error(out, ["start", *argv])
+    return out
 
 
 def current_activity() -> str | None:
     """Return the focused activity component 'pkg/.Activity', if any."""
     out = _run("shell", "dumpsys", "activity", "activities")
-    m = re.search(r"mFocusedApp=ActivityRecord\{[^}]*\s(\S+/\S+)", out)
+    # NOTE: the component is followed by '}' inside the ActivityRecord{...}
+    # wrapper — the capture group must exclude '}' or every comparison
+    # against the requested activity silently fails (0% coverage bug).
+    m = re.search(r"mFocusedApp=ActivityRecord\{[^}]*\s([^\s}]+/[^\s}]+)", out)
     if m:
         return m.group(1)
-    m = re.search(r"mCurrentFocus=Window\{[^}]*\s(\S+/\S+)", out)
+    m = re.search(r"mCurrentFocus=Window\{[^}]*\s([^\s}]+/[^\s}]+)", out)
     return m.group(1) if m else None
 
 

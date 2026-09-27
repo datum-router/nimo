@@ -295,7 +295,7 @@ class Crawler:
             # Direct launch failed (e.g. SecurityException on non-exported).
             # Don't give up: the activity may still surface via UI navigation,
             # so it stays queued. Record the failure for the final report.
-            self.launch_failures[activity] = str(exc)[:120]
+            self.launch_failures[activity] = str(exc)[:500]
             self._log(f"direct launch failed for {activity}: {exc}")
             return
         device.wait(2.0)
@@ -310,7 +310,7 @@ class Crawler:
             try:
                 device.start_activity(comp)
             except device.DeviceError as exc:
-                self.launch_failures[activity] = str(exc)[:120]
+                self.launch_failures[activity] = str(exc)[:500]
                 self._log(f"direct launch failed for {activity}: {exc}")
                 return
             device.wait(2.0)
@@ -321,6 +321,14 @@ class Crawler:
         cur = device.current_activity()
         if cur:
             self._enqueue(cur)
+        if not self._same_activity(activity, cur):
+            # One re-check: cold launches on a slow emulator can miss the
+            # first foreground read. A genuine redirect still shows the
+            # same foreign activity on the second read.
+            device.wait(2.0)
+            cur = device.current_activity()
+            if cur:
+                self._enqueue(cur)
         if not self._same_activity(activity, cur):
             # Redirected elsewhere — do NOT count as visited. Counting it
             # inflated coverage. Often a login wall intercepting the launch.
