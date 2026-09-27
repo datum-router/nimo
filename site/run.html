@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nimo — run a test</title>
+<meta name="description" content="Configure a device, kick off a nimo test on GitHub Actions, watch it live, get the verdict.">
+<style>
+:root{--bg:#0b0e17;--bg2:#101425;--line:#1e2540;--txt:#e8ecf8;--mut:#9aa3c0;
+--acc:#7c6cf0;--acc2:#22d3a5;--warn:#f0a36c;--bad:#f06c6c}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.6}
+.wrap{max-width:920px;margin:0 auto;padding:0 22px}
+nav{border-bottom:1px solid var(--line);padding:16px 0;position:sticky;top:0;background:rgba(11,14,23,.92);backdrop-filter:blur(8px);z-index:5}
+nav .wrap{display:flex;justify-content:space-between;align-items:center}
+.logo{font-weight:800;font-size:22px;letter-spacing:-.5px;text-decoration:none;color:var(--txt)}
+.logo span{color:var(--acc)}
+nav a.back{color:var(--mut);text-decoration:none;font-size:14px}
+nav a.back:hover{color:var(--txt)}
+h1{font-size:34px;letter-spacing:-1px;margin:38px 0 8px}
+.sub{color:var(--mut);margin-bottom:28px;max-width:640px}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px}
+.card h3{font-size:16px;margin-bottom:14px;color:var(--acc)}
+label{display:block;font-size:13px;color:var(--mut);margin:14px 0 6px}
+select,input[type=text],input[type=url],textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:11px 12px;font-size:14px;font-family:inherit}
+textarea{min-height:110px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:640px){.row{grid-template-columns:1fr}}
+.modes{display:flex;gap:10px;flex-wrap:wrap}
+.modes label{margin:0}
+.modes input{display:none}
+.modes span{display:inline-block;padding:9px 16px;border:1px solid var(--line);border-radius:99px;font-size:14px;cursor:pointer;color:var(--mut)}
+.modes input:checked+span{border-color:var(--acc);color:var(--txt);background:rgba(124,108,240,.12)}
+button.run{width:100%;margin-top:20px;padding:15px;border:0;border-radius:12px;font-size:16px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--acc),#4a3fd4);cursor:pointer}
+button.run:disabled{opacity:.5;cursor:wait}
+.hint{font-size:13px;color:var(--mut);margin-top:10px}
+#tracker,#result{display:none}
+.pill{display:inline-block;padding:5px 14px;border-radius:99px;font-size:13px;font-weight:700}
+.pill.run{background:rgba(124,108,240,.15);color:var(--acc)}
+.pill.done{background:rgba(34,211,165,.15);color:var(--acc2)}
+.pill.fail{background:rgba(240,108,108,.15);color:var(--bad)}
+.progress{height:10px;background:var(--bg);border-radius:99px;margin:12px 0;overflow:hidden;border:1px solid var(--line)}
+.progress i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));width:0;transition:width .8s}
+.steplist{list-style:none;margin-top:12px}
+.steplist li{font-size:13.5px;padding:7px 0;border-bottom:1px solid var(--line);color:var(--mut);display:flex;gap:10px;align-items:center}
+.dot{width:9px;height:9px;border-radius:99px;background:var(--line);flex-shrink:0}
+li.s-run .dot{background:var(--acc);animation:pl 1.2s infinite}
+li.s-ok .dot{background:var(--acc2)}
+li.s-bad .dot{background:var(--bad)}
+@keyframes pl{50%{opacity:.35}}
+#shot{width:100%;max-width:300px;border-radius:12px;border:1px solid var(--line);margin-top:12px}
+.verdict{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:6px 0 4px}
+.v-good{color:var(--acc2)}.v-bad{color:var(--bad)}.v-warn{color:var(--warn)}
+.note{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:0 10px 10px 0;padding:14px 16px;font-size:14.5px;margin:16px 0;color:var(--txt)}
+.bugtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin:14px 0}
+.bug{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px}
+.bug b{color:var(--bad);display:block;font-size:13.5px;margin-bottom:4px;word-break:break-word}
+.links{margin-top:14px;font-size:14px}
+.links a{color:var(--acc);text-decoration:none;margin-right:18px}
+.diagram{display:flex;gap:26px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.dstats{font-size:14px;color:var(--mut)}
+.dstats b{color:var(--txt);font-size:22px;display:block}
+code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:13px}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:12.5px;overflow-x:auto;color:var(--mut);white-space:pre-wrap}
+footer{border-top:1px solid var(--line);margin-top:50px;padding:26px 0;color:var(--mut);font-size:13px}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="./">nimo<span>.</span></a>
+  <a class="back" href="./">← back to nimo</a>
+</div></nav>
+
+<div class="wrap">
+  <h1>Run a test</h1>
+  <p class="sub">Pick a device, point nimo at an APK, and it boots Android in the cloud (redroid, falling back to the emulator), runs the full test, and reports back — live, right here.</p>
+
+  <!-- ============ CONFIG ============ -->
+  <div id="config">
+    <div class="card">
+      <h3>1 · Device</h3>
+      <div class="row">
+        <div>
+          <label>Android version</label>
+          <select id="f-version">
+            <option value="auto" selected>Auto — picked from the APK</option>
+            <option>16.0.0</option><option>15.0.0</option><option>14.0.0</option>
+            <option>13.0.0</option><option>12.0.0</option><option>11.0.0</option>
+            <option>10.0.0</option><option>9.0.0</option><option>8.1.0</option>
+          </select>
+        </div>
+        <div>
+          <label>Architecture</label>
+          <select id="f-arch">
+            <option value="auto" selected>Auto — picked from the APK</option>
+            <option value="amd64">amd64 (x86_64)</option>
+            <option value="arm64">arm64 — needs self-hosted runner</option>
+          </select>
+        </div>
+      </div>
+      <p class="hint">redroid boots first; if the runner kernel lacks binder, the standard emulator takes over automatically. arm64 needs your own ARM runner (GitHub-hosted ARM runners lack the kernel module).</p>
+    </div>
+
+    <div class="card">
+      <h3>2 · What to test</h3>
+      <label>Test mode</label>
+      <div class="modes">
+        <label><input type="radio" name="mode" value="pipeline" checked><span>Full pipeline</span></label>
+        <label><input type="radio" name="mode" value="repro"><span>Reproduce a bug</span></label>
+        <label><input type="radio" name="mode" value="discover"><span>Discover bugs</span></label>
+      </div>
+      <div class="row">
+        <div>
+          <label>APK — one of our demos</label>
+          <select id="f-demo">
+            <option value="01-notepad">01 · Notepad (send-note crash)</option>
+            <option value="02-atimetracker">02 · AtimeTracker (restore crash)</option>
+            <option value="03-asciicam">03 · AsciiCam (rotate+delete crash)</option>
+            <option value="04-comicviewer">04 · ComicViewer (startup crash)</option>
+            <option value="05-kiss">05 · KISS launcher (favorites bug)</option>
+          </select>
+        </div>
+        <div>
+          <label>…or your own APK via https URL</label>
+          <input type="url" id="f-url" placeholder="https://example.com/app.apk">
+        </div>
+      </div>
+      <label>Bug report <span style="opacity:.6">(repro mode — paste the report your customer sent)</span></label>
+      <textarea id="f-bug" placeholder="Title: …&#10;Steps: …&#10;Expected: …&#10;Observed: …"></textarea>
+      <div class="row">
+        <div>
+          <label>Max test time (minutes)</label>
+          <select id="f-minutes"><option>10</option><option selected>20</option><option>30</option><option>45</option><option>60</option></select>
+        </div>
+      </div>
+    </div>
+
+    <button class="run" id="btn-run" onclick="dispatch()">▶&nbsp; Run the test</button>
+    <p class="hint" id="worker-note"></p>
+    <div class="card" id="manual" style="display:none">
+      <h3>Manual trigger</h3>
+      <p class="hint">The auto-dispatch worker isn't configured yet — run this from any terminal (needs a token with Actions:write on datum-router/nimo):</p>
+      <pre id="manual-cmd"></pre>
+    </div>
+  </div>
+
+  <!-- ============ TRACKER ============ -->
+  <div id="tracker">
+    <div class="card">
+      <h3>Live</h3>
+      <span class="pill run" id="t-pill">starting…</span>
+      <p class="hint" id="t-meta"></p>
+      <div class="progress"><i id="t-bar"></i></div>
+      <p class="hint" id="t-phase"></p>
+      <ul class="steplist" id="t-steps"></ul>
+      <img id="shot" alt="latest device screenshot" style="display:none">
+      <p class="hint">Steps update live from GitHub Actions; the screenshot refreshes about once a minute.</p>
+    </div>
+  </div>
+
+  <!-- ============ RESULT ============ -->
+  <div id="result">
+    <div class="card">
+      <span class="pill done" id="r-pill">done</span>
+      <div class="verdict" id="r-verdict"></div>
+      <div class="diagram">
+        <svg id="donut" width="150" height="150" viewBox="0 0 150 150"></svg>
+        <div class="dstats">
+          <div><b id="r-cov">–</b>screen coverage</div>
+          <div style="margin-top:10px"><b id="r-bugs">–</b>unique crashes</div>
+          <div style="margin-top:10px"><b id="r-time">–</b>test time</div>
+        </div>
+      </div>
+      <div class="bugtiles" id="r-bugtiles"></div>
+      <div class="note" id="r-note"></div>
+      <div class="links">
+        <a id="r-run" href="#" target="_blank" rel="noopener">View GitHub run →</a>
+        <a id="r-log" href="#" target="_blank" rel="noopener">Full pipeline log →</a>
+      </div>
+    </div>
+  </div>
+
+  <footer>nimo · agentic bug discovery &amp; reproduction · <a href="https://github.com/datum-router/nimo" style="color:var(--acc)">GitHub</a></footer>
+</div>
+
+<script>
+// ===== config: set this after deploying worker/dispatch.js =====
+const WORKER_URL = ""; // e.g. "https://nimo-dispatch.you.workers.dev"
+const REPO = "datum-router/nimo", WF = "redroid-test.yml";
+const API = `https://api.github.com/repos/${REPO}/actions/workflows/${WF}`;
+const RAW = `https://raw.githubusercontent.com/${REPO}/live`;
+
+const $ = id => document.getElementById(id);
+let runId = null, pollTimers = [];
+
+if (!WORKER_URL) {
+  $("worker-note").textContent = "Auto-dispatch isn't wired up yet — configure WORKER_URL (see worker/README.md), or trigger manually:";
+  $("manual").style.display = "block";
+  updateManualCmd();
+  ["f-version","f-arch","f-demo","f-url","f-bug","f-minutes"].forEach(id =>
+    $(id).addEventListener("input", updateManualCmd));
+  document.querySelectorAll('input[name=mode]').forEach(r =>
+    r.addEventListener("change", updateManualCmd));
+}
+function mode(){ return document.querySelector('input[name=mode]:checked').value; }
+function apkSource(){ const u = $("f-url").value.trim(); return u || $("f-demo").value; }
+function updateManualCmd(){
+  const bug = $("f-bug").value.replace(/"/g,'\\"').replace(/\n/g,"\\n");
+  $("manual-cmd").textContent =
+`curl -X POST -H "Authorization: Bearer YOUR_TOKEN" -H "Accept: application/vnd.github+json" \\
+  https://api.github.com/repos/${REPO}/actions/workflows/${WF}/dispatches \\
+  -d '{"ref":"main","inputs":{"android_version":"${$("f-version").value}","arch":"${$("f-arch").value}","mode":"${mode()}","apk_source":"${apkSource()}","bug_report":"${bug}","max_minutes":"${$("f-minutes").value}"}}'`;
+}
+
+async function dispatch(){
+  const m = mode(), bug = $("f-bug").value.trim();
+  if (m === "repro" && !bug) { alert("Repro mode needs a bug report — paste one in."); return; }
+  if (!WORKER_URL) { alert("Auto-dispatch isn't configured yet — use the manual command below."); return; }
+  const btn = $("btn-run"); btn.disabled = true; btn.textContent = "Kicking off…";
+  try {
+    const r = await fetch(WORKER_URL, { method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ android_version:$("f-version").value, arch:$("f-arch").value,
+        mode:m, apk_source:apkSource(), bug_report:bug, max_minutes:$("f-minutes").value }) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || "dispatch failed");
+    startTracking(j.dispatched_at, { version:$("f-version").value, arch:$("f-arch").value, mode:m });
+  } catch(e) {
+    alert("Couldn't start the run: " + e.message);
+    btn.disabled = false; btn.textContent = "▶  Run the test";
+  }
+}
+
+function startTracking(dispatchedAt, meta){
+  $("config").style.display = "none";
+  $("tracker").style.display = "block";
+  $("t-meta").textContent = `Android ${meta.version} · ${meta.arch} · ${meta.mode} · dispatched ${new Date(dispatchedAt).toLocaleTimeString()}`;
+  const since = new Date(new Date(dispatchedAt).getTime() - 60000).toISOString();
+  const findRun = async () => {
+    try {
+      const r = await fetch(`${API}/runs?event=workflow_dispatch&per_page=10`);
+      if (r.status === 403) { $("t-phase").textContent = "GitHub API rate limit hit — backing off, will retry."; return; }
+      const j = await r.json();
+      const run = (j.workflow_runs||[]).find(x => x.created_at >= since);
+      if (run) { runId = run.id; clearInterval(t1); trackRun(); }
+    } catch(e) { /* retry */ }
+  };
+  const t1 = setInterval(findRun, 15000); pollTimers.push(t1); findRun();
+  setTimeout(() => { if (!runId) { clearInterval(t1); $("t-phase").textContent = "No run appeared after 10 minutes — check the Actions tab."; } }, 600000);
+}
+
+function trackRun(){
+  $("t-phase").textContent = "Run found — waiting for the device to boot…";
+  const jobs = async () => {
+    try {
+      const r = await fetch(`https://api.github.com/repos/${REPO}/actions/runs/${runId}/jobs`);
+      if (r.status === 403) return; // rate limited, try next tick
+      const j = await r.json();
+      const job = (j.jobs||[])[0];
+      if (!job) return;
+      renderSteps(job.steps || []);
+      if (job.status === "completed") { finish(job.conclusion); }
+    } catch(e) {}
+  };
+  const prog = async () => {
+    if (!runId) return;
+    try {
+      const r = await fetch(`${RAW}/run-${runId}/progress.json?t=${Date.now()}`);
+      if (!r.ok) return;
+      const p = await r.json();
+      const pct = p.total ? Math.round(100*p.visited/p.total) : 0;
+      $("t-bar").style.width = pct + "%";
+      $("t-phase").textContent = `${p.phase||""} — ${p.visited||0}/${p.total||0} screens`;
+    } catch(e) {}
+    const img = $("shot");
+    img.src = `${RAW}/run-${runId}/latest.png?t=${Date.now()}`;
+    img.style.display = "block";
+    img.onerror = () => img.style.display = "none";
+  };
+  pollTimers.push(setInterval(jobs, 60000), setInterval(prog, 45000));
+  jobs(); prog();
+}
+
+function renderSteps(steps){
+  const ul = $("t-steps"); ul.innerHTML = "";
+  steps.forEach(s => {
+    const li = document.createElement("li");
+    const cls = s.conclusion === "success" ? "s-ok" : s.conclusion === "failure" ? "s-bad" : s.status === "in_progress" ? "s-run" : "";
+    li.className = cls;
+    li.innerHTML = `<span class="dot"></span><span>${s.name} — ${s.status.replace(/_/g," ")}${s.conclusion ? " · " + s.conclusion : ""}</span>`;
+    ul.appendChild(li);
+  });
+  const running = steps.some(s => s.status === "in_progress" || s.status === "queued");
+  const pill = $("t-pill");
+  if (!running && steps.length) { pill.textContent = "wrapping up…"; }
+}
+
+async function finish(conclusion){
+  pollTimers.forEach(clearInterval);
+  const pill = $("t-pill");
+  pill.textContent = conclusion === "success" ? "done" : "finished";
+  pill.className = "pill " + (conclusion === "success" ? "done" : "fail");
+  // final summary (may take a few seconds to land on the branch)
+  let s = null;
+  for (let i = 0; i < 10 && !s; i++) {
+    try {
+      const r = await fetch(`${RAW}/run-${runId}/summary.json?t=${Date.now()}`);
+      if (r.ok) s = await r.json();
+    } catch(e) {}
+    if (!s) await new Promise(r => setTimeout(r, 15000));
+  }
+  $("tracker").style.display = "none";
+  $("result").style.display = "block";
+  if (!s) {
+    $("r-verdict").textContent = "Run finished — summary not available yet.";
+    $("r-verdict").className = "verdict v-warn";
+    $("r-note").textContent = "The run completed but summary.json hasn't landed on the live branch. Check the GitHub run directly.";
+  } else {
+    renderResult(s);
+  }
+  $("r-run").href = `https://github.com/${REPO}/actions/runs/${runId}`;
+  $("r-log").href = `${RAW}/run-${runId}/pipeline.log`;
+  window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
+}
+
+function renderResult(s){
+  const v = $("r-verdict"), pill = $("r-pill");
+  const titles = { bugs_found:["Bugs found", "v-bad"], clean:["Clean — no crashes","v-good"],
+    reproduced:["Bug reproduced","v-bad"], not_reproduced:["Not reproduced","v-warn"], failed:["Run failed","v-bad"] };
+  const [t, c] = titles[s.verdict] || [s.verdict, "v-warn"];
+  v.textContent = t; v.className = "verdict " + c;
+  pill.textContent = s.verdict.replace(/_/g," ");
+  pill.className = "pill " + (s.verdict==="clean" ? "done" : s.verdict==="failed" ? "fail" : "run");
+  // donut
+  const pct = s.coverage_pct || 0, R = 60, C = 2*Math.PI*R;
+  $("donut").innerHTML =
+    `<circle cx="75" cy="75" r="${R}" fill="none" stroke="#1e2540" stroke-width="14"/>
+     <circle cx="75" cy="75" r="${R}" fill="none" stroke="#22d3a5" stroke-width="14"
+       stroke-dasharray="${(pct/100*C).toFixed(1)} ${C.toFixed(1)}" stroke-linecap="round"
+       transform="rotate(-90 75 75)"/>
+     <text x="75" y="82" text-anchor="middle" fill="#e8ecf8" font-size="24" font-weight="800">${pct}%</text>`;
+  $("r-cov").textContent = `${s.visited||0}/${s.total||0}`;
+  $("r-bugs").textContent = (s.bugs||[]).length;
+  const secs = s.wall_seconds || 0;
+  $("r-time").textContent = secs > 90 ? Math.round(secs/60)+" min" : Math.round(secs)+" s";
+  const tiles = $("r-bugtiles"); tiles.innerHTML = "";
+  (s.bugs||[]).forEach(b => {
+    const d = document.createElement("div"); d.className = "bug";
+    d.innerHTML = `<b>${b.exception}</b>×${b.occurrences} · ${(b.activity||"").split(".").pop()}<br><span style="color:var(--mut)">#${b.fingerprint}</span>`;
+    tiles.appendChild(d);
+  });
+  if ((s.unreachable||[]).length) {
+    const d = document.createElement("div"); d.className = "bug";
+    d.innerHTML = `<b style="color:var(--warn)">${s.unreachable.length} unreachable screen(s)</b>` +
+      s.unreachable.slice(0,3).map(u=>u.activity.split(".").pop()).join(", ") +
+      (s.unreachable.length > 3 ? "…" : "");
+    tiles.appendChild(d);
+  }
+  $("r-note").textContent = s.customer_note || "";
+}
+</script>
+</body>
+</html>
