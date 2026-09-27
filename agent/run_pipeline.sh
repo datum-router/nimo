@@ -86,7 +86,8 @@ EOF
   while kill -0 $PPID 2>/dev/null; do
     sleep 20
     write_progress
-    adb -s "$ANDROID_SERIAL" exec-out screencap -p > "run-$RUN_ID/latest.png" 2>/dev/null || true
+    # timeout: a wedged adb (sick emulator) must not stall the live feed
+    timeout 30 adb -s "$ANDROID_SERIAL" exec-out screencap -p > "run-$RUN_ID/latest.png" 2>/dev/null || true
     git add "run-$RUN_ID" 2>/dev/null
     git commit -q --amend --no-edit || git commit -qm "run $RUN_ID progress"
     git push -q -f origin "$LIVE_BRANCH" || true
@@ -94,8 +95,14 @@ EOF
 ) &
 PUSHER=$!
 
-python3 -m agent.pipeline "${ARGS[@]}" 2>&1 | tee pipeline.log
+# Watchdog: a wedged adb (sick emulator) must never burn the whole
+# 6-hour job timeout. Kill the pipeline past the user's budget plus
+# slack; the honest "failed" fallback below still reports the outcome.
+timeout "$((MAXMIN + 10))m" python3 -m agent.pipeline "${ARGS[@]}" 2>&1 | tee pipeline.log
 STATUS=${PIPESTATUS[0]}
+if [ "$STATUS" -eq 124 ]; then
+  echo "watchdog: pipeline exceeded $((MAXMIN + 10)) minutes, killed"
+fi
 kill $PUSHER 2>/dev/null || true
 wait $PUSHER 2>/dev/null || true
 echo "pipeline exit: $STATUS"
@@ -120,7 +127,7 @@ json.dump({"verdict": "failed",
            "visited": 0, "total": 0}, open("summary.json", "w"))
 EOF
 fi
-adb -s "$ANDROID_SERIAL" exec-out screencap -p > final.png 2>/dev/null || true
+timeout 30 adb -s "$ANDROID_SERIAL" exec-out screencap -p > final.png 2>/dev/null || true
 cd /tmp/live
 mkdir -p "run-$RUN_ID"
 cp "$GITHUB_WORKSPACE/summary.json" "run-$RUN_ID/summary.json"
