@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>nimo — send a bug report, get back a verified reproduction</title>
-<meta name="description" content="nimo is an agent that reproduces Android bug reports on real devices and returns a verified verdict with steps, screenshots, and crash logs.">
+<title>nimo — agentic bug discovery for apps that ship fast</title>
+<meta name="description" content="People ship apps faster than ever — with or without AI slop. nimo finds the bugs: send a bug report plus the APK for a verified reproduction, or just the APK and nimo will hunt for bugs itself.">
 <style>
   :root{
     --bg:#0a0a10; --bg2:#101018; --card:#14141d; --line:#23232f;
@@ -140,6 +140,7 @@
   <div class="wrap">
     <a class="logo" href="#">nimo<span>.</span></a>
     <div class="navlinks">
+      <a href="#modes">Modes</a>
       <a href="#how">How it works</a>
       <a href="#demos">Demos</a>
       <a href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">GitHub</a>
@@ -151,9 +152,9 @@
 <header class="hero">
   <div class="wrap hero-grid">
     <div>
-      <div class="kicker">AI bug-reproduction agent</div>
-      <h1>Send a bug report.<br><span class="grad">Get back a verified reproduction.</span></h1>
-      <p class="sub">nimo takes a plain-text bug report and an Android APK, drives the app on a real device, and returns a verdict — reproduced or not — with the exact steps, screenshots, and the crash log. No SDK. No instrumentation.</p>
+      <div class="kicker">Agentic bug discovery & reproduction</div>
+      <h1>You ship fast.<br><span class="grad">We find what broke.</span></h1>
+      <p class="sub">People are building apps quicker than ever — with or without AI slop. nimo is here to catch what slipped through: send us the bug report your customer gave you plus the APK and get back a verified reproduction, or just send the APK and nimo will explore it, hunt for bugs, and report back with results.</p>
       <div class="cta">
         <a class="btn btn-acc" href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">Try the demo</a>
         <a class="btn btn-ghost" href="#how">How it works</a>
@@ -172,12 +173,31 @@
 
 <div class="strip">
   <div class="wrap">
+    <span><b>Two modes:</b> reproduce or discover</span>
     <span><b>No SDK</b> to integrate</span>
     <span><b>Free LLM</b> by default</span>
     <span><b>Real devices</b>, not mocks</span>
-    <span><b>Verdict</b> you can trust</span>
   </div>
 </div>
+
+<section id="modes">
+  <div class="wrap">
+    <h2 class="sec-title">Two ways to use nimo</h2>
+    <p class="sec-sub">However the bug reaches you, nimo takes it from there.</p>
+    <div class="steps" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <div class="step-n">Reproduce</div>
+        <h3>Bug report + APK</h3>
+        <p>A customer sent you a bug report. Hand nimo the report and the APK — it drives the app, reproduces the exact issue, and returns a <b>verified verdict</b> with the step-by-step trace, screenshots, and the crash log. No more "works on my machine".</p>
+      </div>
+      <div class="card">
+        <div class="step-n">Discover</div>
+        <h3>Just the APK</h3>
+        <p>No bug report yet? Give nimo only the APK. It explores the app like a relentless QA engineer — every screen, every menu, every edge input — hunting for crashes on its own, and gets back to you with <b>every bug it found</b>, each with its trace and log.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
 <section id="how">
   <div class="wrap">
@@ -186,8 +206,8 @@
     <div class="steps">
       <div class="card">
         <div class="step-n">Step 1</div>
-        <h3>Drop in the bug</h3>
-        <p>Hand nimo the APK and the bug report as plain markdown — title, steps, expected vs. observed behavior. That's the whole integration.</p>
+        <h3>Drop in the bug — or just the app</h3>
+        <p>Reproduce mode: hand nimo the APK and the bug report as plain markdown. Discover mode: just the APK — nimo explores and hunts on its own. That's the whole integration.</p>
       </div>
       <div class="card">
         <div class="step-n">Step 2</div>
@@ -244,8 +264,8 @@
 
 <section>
   <div class="wrap" style="text-align:center">
-    <h2 class="sec-title">Stop guessing. Start reproducing.</h2>
-    <p class="sec-sub" style="margin-left:auto;margin-right:auto">Clone the repo, plug in a device, run one command.</p>
+    <h2 class="sec-title">Stop shipping bugs. Start shipping verdicts.</h2>
+    <p class="sec-sub" style="margin-left:auto;margin-right:auto">Bug report + APK, or just the APK. Clone the repo, plug in a device, run one command.</p>
     <a class="btn btn-acc" href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">Get nimo on GitHub</a>
   </div>
 </section>
@@ -325,7 +345,11 @@
 
   const KB = [
     {k:['what is nimo','what does nimo do','about nimo','who is nimo','explain nimo'],
-     a:"nimo is an AI agent that reproduces Android bug reports. You give it an APK and a plain-text bug report; it drives the app on a real device and returns a verdict — reproduced or not — with steps, screenshots, and the crash log."},
+     a:"nimo is an AI agent for apps that ship fast. It has two modes: Reproduce — you give it a bug report plus the APK and it returns a verified reproduction with steps, screenshots, and the crash log; and Discover — you give it just the APK and it explores the app itself, hunting for bugs, and reports everything it finds."},
+    {k:['discover','just the apk','only the apk','no bug report','explore','hunt','find bugs'],
+     a:"Discover mode is nimo's APK-only mode: no bug report needed. The agent explores your app like a relentless QA engineer — every screen, menu, and edge input — and gets back to you with every bug it found, each with its trace and crash log. Run it with: python -m agent.repro --discover --apk app.apk --package com.example.app --out out/"},
+    {k:['reproduce','reproduction','bug report'],
+     a:"Reproduce mode: hand nimo the bug report your customer sent you plus the APK. It drives the app through the report and returns a verdict — reproduced or not_reproduced — with the step-by-step trace, screenshots, and the logcat crash. A 'reproduced' verdict on a crash requires a real FATAL EXCEPTION."},
     {k:['how does it work','how it works','how do','process','steps'],
      a:"Three steps: 1) you drop in the APK and bug report, 2) the agent installs the app and taps/types/swipes through the report like a QA engineer, 3) you get a verdict with the trace, screenshots, and logcat. Crash verdicts require a real FATAL EXCEPTION — it can't hallucinate a repro."},
     {k:['price','pricing','cost','free','paid','money'],
@@ -374,7 +398,7 @@
   orb.addEventListener('click', ()=>{
     chat.classList.toggle('open');
     if(chat.classList.contains('open') && !body.children.length){
-      addMsg("Hi, I'm the nimo bot. I only answer questions about nimo — what it does, how it works, the demos, that sort of thing. What's up?", 'bot');
+      addMsg("Hi, I'm the nimo bot. I only answer questions about nimo — what it does, the reproduce and discover modes, the demos, that sort of thing. What's up?", 'bot');
     }
   });
   send.addEventListener('click', submit);
