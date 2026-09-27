@@ -75,8 +75,18 @@ jobs:
           SRC="${{ inputs.apk_source }}"
           if [[ "$SRC" == http* ]]; then
             curl -fsSL --max-time 300 -o app.apk "$SRC"
-          else
+          elif [[ -f "demo/$SRC/app.apk" ]]; then
             cp "demo/$SRC/app.apk" app.apk
+          else
+            # tolerate bare names ("notepad" -> "demo/01-notepad")
+            match=(demo/*-"$SRC"/app.apk)
+            if [[ -f "${match[0]}" ]]; then
+              cp "${match[0]}" app.apk
+            else
+              echo "unknown apk_source '$SRC' — valid demo ids:"
+              ls demo/
+              exit 1
+            fi
           fi
           python3 -c "import zipfile; z=zipfile.ZipFile('app.apk'); print('apk ok:', len(z.namelist()), 'entries')"
 
