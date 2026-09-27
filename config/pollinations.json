@@ -1,0 +1,1 @@
+{"base_url":"https://text.pollinations.ai/openai","model":"openai","note":"Free tier, no API key, no signup. Anonymous usage limits apply; for heavier runs set NIMO_BASE_URL / NIMO_API_KEY / NIMO_MODEL to any OpenAI-compatible provider (e.g. Gemini via Google AI Studio).","provider":"pollinations"}
