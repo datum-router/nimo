@@ -118,13 +118,17 @@ jobs:
               sys.exit(1)
           if arch == "auto":
               arch = rec["arch"]
+          # AOSP 'default' images boot noticeably faster and download
+          # smaller than google_apis — use them unless the APK needs GMS.
+          target = "google_apis" if rec["uses_gms"] else "default"
           print(f"android_version={ver}")
           print(f"api_level={VERSION_API[ver]}")
           print(f"arch={arch}")
+          print(f"target={target}")
           for i, why in enumerate(rec["reasons"]):
               print(f"reason{i}={why}")
           EOF
-          grep -E "^(android_version|api_level|arch|reason)" "$GITHUB_OUTPUT" | tail -8
+          grep -E "^(android_version|api_level|arch|target|reason)" "$GITHUB_OUTPUT" | tail -9
 
       - name: Validate inputs
         run: |
@@ -201,6 +205,15 @@ jobs:
           docker logs nimo-redroid || true
           exit 1
 
+      # Cache the emulator system image between runs: the download is
+      # ~1GB and dominates cold-boot time on the fallback path.
+      - name: Cache Android system image
+        if: steps.binder.outputs.available != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_SDK_ROOT }}/system-images
+          key: sysimg-${{ steps.env.outputs.api_level }}-${{ steps.env.outputs.target }}-x86_64
+
       # NOTE: the emulator is killed when this step ends, so the whole
       # pipeline runs INSIDE the boot script while the device is alive.
       - name: Boot emulator and run pipeline (fallback)
@@ -208,7 +221,10 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ steps.env.outputs.api_level }}
+          target: ${{ steps.env.outputs.target }}
           arch: x86_64
+          disable-animations: true
+          emulator-options: -no-snapshot-save -noaudio -no-boot-anim -camera-back none -gpu swiftshader_indirect
           # NOTE: this action executes the script line-by-line, so the whole
           # invocation must be a single line (no backslash continuations).
           script: adb -s emulator-5554 wait-for-device && bash "$GITHUB_WORKSPACE/agent/run_pipeline.sh" emulator emulator-5554 "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ inputs.bug_report != '' }}"
