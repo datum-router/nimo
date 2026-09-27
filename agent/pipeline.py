@@ -56,8 +56,8 @@ def main() -> None:
     started = datetime.now(timezone.utc).isoformat()
 
     # ---- preflight: refuse bad APKs before spending device minutes -----
-    def _gate(apk: str, need_cov: bool, pkg: str | None = None) -> None:
-        r = preflight.check(apk, expected_package=pkg, need_coverage=need_cov)
+    def _gate(apk: str, need_coverage: bool, pkg: str | None = None):
+        r = preflight.check(apk, expected_package=pkg, need_coverage=need_coverage)
         for f in r.failures:
             print(f"[nimo] preflight FAIL: {f}")
         if not r.ok:
@@ -70,7 +70,7 @@ def main() -> None:
     print("[nimo] preflight...")
     pf = _gate(args.apk, need_coverage=bool(args.coverage_apk))
     if args.coverage_apk and args.coverage_apk != args.apk:
-        _gate(args.coverage_apk, need_cov=True,
+        _gate(args.coverage_apk, need_coverage=True,
               pkg=pf.info.get("package"))
 
     # ---- static map -------------------------------------------------
