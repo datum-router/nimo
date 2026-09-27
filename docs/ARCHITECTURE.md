@@ -23,6 +23,19 @@ bug report (md) + APK
   screenshots/          one PNG per step + final.png
 ```
 
+## Modules
+| File | Job |
+|---|---|
+| `agent/repro.py` | Path A: targeted bug reproduction loop (25-step LLM agent) |
+| `agent/pipeline.py` | Orchestrator: static map → install → Path A and/or B → report |
+| `agent/apkmeta.py` | Static analysis via androguard: activities, exported flags, deep links, permissions — the coverage denominator |
+| `agent/crawler.py` | Path B: BFS exploration — direct `am start` per activity, deep-link firing, per-element sweep, state fingerprinting |
+| `agent/auth.py` | Login walls: provided credentials → auto sign-up → Google Sign-In (pre-authed snapshot) → honest unreachable |
+| `agent/triage.py` | Crash dedup by stack-trace fingerprint |
+| `agent/device.py` | adb primitives: install/launch, UI dump, tap/swipe/type, logcat crash watch, screenshots, direct activity launch |
+| `agent/llm.py` | OpenAI-compatible client (Pollinations default, swappable) |
+| `agent/prompts.py` | System/step prompts for repro + free-roam discover modes |
+
 ## How a run works
 1. **Setup** — `force-stop`, `install -r -g`, `logcat -c`, launch via monkey.
 2. **Loop (max 25 steps)** —
