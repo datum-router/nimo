@@ -92,6 +92,7 @@ def fire_all(package: str, targets: list[dict],
         device.force_stop(package)
         device.clear_logcat()
         outcome, detail = "launch-failed", ""
+        perm_dialog = False
         try:
             out = device.am_start(t["command"][3:], timeout=20)
             low = (out or "").lower()
@@ -99,6 +100,17 @@ def fire_all(package: str, targets: list[dict],
                 outcome, detail = "not-exported", out.strip()[:200]
             else:
                 device.wait(wait_s)
+                if device.is_permission_dialog():
+                    # the app asked for a permission on launch — grant it and
+                    # re-fire, otherwise every later target no-ops behind it
+                    perm_dialog = True
+                    device.dismiss_permission_dialog(package)
+                    device.wait(1.0)
+                    try:
+                        device.am_start(t["command"][3:], timeout=20)
+                    except device.DeviceError:
+                        pass
+                    device.wait(wait_s)
                 cur = device.current_activity() or ""
                 crash = device.recent_crash(package)
                 if crash:
@@ -126,6 +138,8 @@ def fire_all(package: str, targets: list[dict],
             code = {"not-exported": "not-exported",
                     "crash-on-launch": "crash-on-launch"}.get(outcome,
                                                              "launch-failed")
+            if outcome == "launch-failed" and perm_dialog:
+                code = "permission-loop"
             unreachable.append(blockers.label(activity, code, detail[:120]))
 
     return {"reached": reached, "unreachable": unreachable,
