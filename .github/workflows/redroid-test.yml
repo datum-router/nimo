@@ -136,12 +136,6 @@ jobs:
             adb -s emulator-5554 wait-for-device
 
       # ---- live progress channel (branch `live`, dir run-<id>) ----
-        if: inputs.bug_report != ''
-        run: |
-          printf '%s' "${{ inputs.bug_report }}" > bug_report.md
-          wc -l bug_report.md
-
-      # ---- live progress channel (branch `live`, dir run-<id>) ----
       - name: Write bug report
         if: inputs.bug_report != ''
         run: |
