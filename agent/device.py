@@ -234,6 +234,51 @@ def dismiss_permission_dialog(package: str,
     return True
 
 
+_LAUNCHER_PKGS = ("com.android.launcher3",
+                  "com.google.android.apps.nexuslauncher")
+# never force-stop these even if they own the foreground
+_CORE_SYSTEM_PKGS = ("android", "com.android.systemui") + _LAUNCHER_PKGS
+
+
+def reset_foreground(package: str, tries: int = 4) -> str | None:
+    """Clear anything that hijacked the foreground.
+
+    The intent sweep fires VIEW/PICK intents that can open external apps
+    (Contacts, the system resolver chooser, ...) which then sit modal and
+    make every later `am start` no-op behind them — the same coverage
+    collapse class as the permission-dialog bug. BACK out of the intruder;
+    if BACK doesn't dismiss it, force-stop the owning app. The launcher is
+    fine (explicit launches work from home). Returns the intruder
+    component if it could not be cleared, else None.
+    """
+    for _ in range(tries):
+        cur = current_activity() or ""
+        if not cur:
+            return None
+        pkg = cur.split("/")[0]
+        if pkg == package or pkg in _LAUNCHER_PKGS:
+            return None
+        press_back()
+        wait(0.8)
+        if (current_activity() or "") != cur:
+            continue  # BACK dismissed it
+        if pkg not in _CORE_SYSTEM_PKGS:
+            try:
+                force_stop(pkg)
+            except DeviceError:
+                pass
+            wait(0.8)
+        else:
+            # core system UI (e.g. the resolver chooser lives in "android"):
+            # BACK is the only safe dismissal; try once more
+            press_back()
+            wait(0.8)
+    cur = current_activity() or ""
+    if cur and cur.split("/")[0] not in (package,) + _LAUNCHER_PKGS:
+        return cur
+    return None
+
+
 def send_sms(code: str) -> None:
     """Deliver an SMS to the emulator (for OTP screens on emulators)."""
     _run("emu", "sms", "send", "5550100", code)

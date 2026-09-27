@@ -90,6 +90,10 @@ def fire_all(package: str, targets: list[dict],
     for t in targets:
         activity = t["activity"]
         device.force_stop(package)
+        # a previous target may have opened an external app (Contacts, the
+        # resolver chooser, ...) that now sits modal — clear it or every
+        # later am start no-ops behind it
+        device.reset_foreground(package)
         device.clear_logcat()
         outcome, detail = "launch-failed", ""
         perm_dialog = False
@@ -112,6 +116,18 @@ def fire_all(package: str, targets: list[dict],
                         pass
                     device.wait(wait_s)
                 cur = device.current_activity() or ""
+                if (cur and cur.split("/")[0] != package
+                        and not device.recent_crash(package)):
+                    # an intent hijacker owns the foreground — clear it and
+                    # re-fire once before calling it a failure
+                    device.reset_foreground(package)
+                    device.wait(0.5)
+                    try:
+                        device.am_start(t["command"][3:], timeout=20)
+                    except device.DeviceError:
+                        pass
+                    device.wait(wait_s)
+                    cur = device.current_activity() or ""
                 crash = device.recent_crash(package)
                 if crash:
                     outcome = "crash-on-launch"
@@ -125,6 +141,8 @@ def fire_all(package: str, targets: list[dict],
                     detail = f"landed on {landed}"
                 else:
                     detail = f"no-op (foreground: {cur or 'none'})"
+                    if "ResolverActivity" in cur:
+                        detail += " — intent needs disambiguation"
         except device.DeviceError as e:
             msg = str(e).lower()
             if "securityexception" in msg or "not exported" in msg:

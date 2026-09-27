@@ -225,8 +225,12 @@ class Crawler:
         for a in self.meta.activities:
             if a.name not in visited:
                 if a.name in self.launch_failures:
-                    entry = blockers.label(
-                        a.name, "launch-failed", self.launch_failures[a.name])
+                    msg = self.launch_failures[a.name]
+                    code = ("not-exported"
+                            if "securityexception" in msg.lower()
+                            or "not exported" in msg.lower()
+                            else "launch-failed")
+                    entry = blockers.label(a.name, code, msg)
                 elif a.name in self.login_redirects:
                     entry = blockers.label(
                         a.name, "login-wall",
@@ -266,6 +270,9 @@ class Crawler:
     def _visit_activity(self, activity: str) -> None:
         pkg = self.meta.package
         comp = apkmeta.component(pkg, activity)
+        # the intent sweep may have left an external app (or a chooser)
+        # modal in the foreground — clear it or this launch no-ops
+        device.reset_foreground(pkg)
         try:
             device.start_activity(comp)
         except device.DeviceError as exc:
