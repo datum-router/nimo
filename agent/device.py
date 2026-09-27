@@ -190,6 +190,50 @@ def grant_permissions(package: str, permissions: list[str]) -> None:
             pass  # not all permissions are grantable; the crawler dismisses the rest
 
 
+_PERMISSION_DIALOG_PKGS = ("com.android.permissioncontroller",
+                           "com.android.packageinstaller")
+_ALLOW_LABELS = ("allow", "while using the app", "only this time",
+                 "allow all the time")
+
+
+def is_permission_dialog() -> bool:
+    """Is a system permission dialog the foreground activity?"""
+    cur = current_activity() or ""
+    return cur.split("/")[0] in _PERMISSION_DIALOG_PKGS
+
+
+def dismiss_permission_dialog(package: str,
+                              permissions: list[str] | None = None) -> bool:
+    """Grant the app's permissions and dismiss a foreground system
+    permission dialog. Returns True if a dialog was handled.
+
+    `adb install -g` / `pm grant` don't cover everything (runtime requests,
+    non-grantable permissions), so the crawler calls this whenever the
+    dialog is seen blocking a launch — otherwise every subsequent `am
+    start` no-ops behind it and coverage collapses to zero.
+    """
+    if not is_permission_dialog():
+        return False
+    for p in permissions or []:
+        try:
+            _run("shell", "pm", "grant", package, p)
+        except DeviceError:
+            pass
+    try:
+        for e in dump_ui():
+            if (e.get("label") or "").strip().lower() in _ALLOW_LABELS:
+                tap(e["x"], e["y"])
+                break
+    except DeviceError:
+        pass
+    wait(1.0)
+    if is_permission_dialog():
+        # grant already attempted above; BACK just dismisses the dialog
+        _run("shell", "input", "keyevent", "KEYCODE_BACK")
+        wait(1.0)
+    return True
+
+
 def send_sms(code: str) -> None:
     """Deliver an SMS to the emulator (for OTP screens on emulators)."""
     _run("emu", "sms", "send", "5550100", code)
