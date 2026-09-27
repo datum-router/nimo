@@ -1,0 +1,247 @@
+# nimo on-demand test — triggered from the nimo.run page (or manually).
+#
+# Full setup, no human in the loop:
+#   1. Probe for binder -> boot redroid (Android in Docker) if available,
+#      else fall back to the standard Android emulator.
+#   2. Fetch the APK (demo APK from this repo, or a customer-supplied URL).
+#   3. Run the nimo pipeline (repro / discover / full).
+#   4. Stream progress + screenshots to the `live` branch while running.
+#   5. Write summary.json (verdict + customer note) for the results UI.
+#
+# Public repo = unlimited free Actions minutes.
+
+name: nimo on-demand test
+
+on:
+  workflow_dispatch:
+    inputs:
+      android_version:
+        description: "Android version (redroid image)"
+        type: choice
+        default: "13.0.0"
+        options:
+          ["16.0.0", "15.0.0", "14.0.0", "13.0.0", "12.0.0",
+           "11.0.0", "10.0.0", "9.0.0", "8.1.0"]
+      arch:
+        description: "CPU architecture"
+        type: choice
+        default: "amd64"
+        options: ["amd64", "arm64"]
+      mode:
+        description: "Test mode"
+        type: choice
+        default: "pipeline"
+        options: ["pipeline", "repro", "discover"]
+      apk_source:
+        description: "Demo APK id (e.g. 01-notepad) or https URL to an APK"
+        default: "01-notepad"
+      bug_report:
+        description: "Bug report markdown (repro mode)"
+        type: string
+        default: ""
+      max_minutes:
+        description: "Max crawl time (minutes)"
+        default: "20"
+
+permissions:
+  contents: write   # push progress/summary to the `live` branch
+
+jobs:
+  test:
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    env:
+      RUN_ID: ${{ github.run_id }}
+      LIVE_BRANCH: live
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate inputs
+        run: |
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            echo "::error::arm64 needs a self-hosted ARM runner with binder — GitHub-hosted ARM runners lack the kernel module. Pick amd64."
+            exit 1
+          fi
+          if [ "${{ inputs.mode }}" = "repro" ] && [ -z "${{ inputs.bug_report }}" ]; then
+            echo "::error::repro mode needs a bug report."
+            exit 1
+          fi
+
+      - name: Install adb + python deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq android-tools-adb
+          pip install -q androguard
+
+      # ---- device: redroid if binder exists, emulator otherwise ----
+      - name: Probe for binder (redroid requirement)
+        id: binder
+        run: |
+          if sudo modprobe binder_linux devices="binder,hwbinder,vndbinder" 2>/dev/null && ls /dev/binder* >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "binder present — using redroid"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::binder kernel module unavailable — falling back to the standard Android emulator"
+          fi
+
+      - name: Boot redroid
+        if: steps.binder.outputs.available == 'true'
+        run: |
+          docker run -d --rm --privileged \
+            --name nimo-redroid \
+            -p 5555:5555 \
+            redroid/redroid:${{ inputs.android_version }}-latest \
+            androidboot.redroid_width=1080 \
+            androidboot.redroid_height=1920 \
+            androidboot.redroid_dpi=420
+          echo "ANDROID_SERIAL=localhost:5555" >> "$GITHUB_ENV"
+          echo "RUNTIME=redroid" >> "$GITHUB_ENV"
+          for i in $(seq 1 60); do
+            adb connect localhost:5555 >/dev/null 2>&1
+            if [ "$(adb -s localhost:5555 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              echo "redroid booted"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::redroid did not boot in 10 minutes"
+          docker logs nimo-redroid || true
+          exit 1
+
+      - name: Boot emulator (fallback)
+        if: steps.binder.outputs.available != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.android_version == '16.0.0' && 35 || inputs.android_version == '15.0.0' && 35 || inputs.android_version == '14.0.0' && 34 || inputs.android_version == '13.0.0' && 33 || inputs.android_version == '12.0.0' && 32 || inputs.android_version == '11.0.0' && 30 || inputs.android_version == '10.0.0' && 29 || inputs.android_version == '9.0.0' && 28 || 27 }}
+          arch: x86_64
+          script: |
+            echo "RUNTIME=emulator" >> "$GITHUB_ENV"
+            echo "ANDROID_SERIAL=emulator-5554" >> "$GITHUB_ENV"
+            adb -s emulator-5554 wait-for-device
+
+      # ---- test inputs ----
+      - name: Fetch APK
+        run: |
+          SRC="${{ inputs.apk_source }}"
+          if [[ "$SRC" == http* ]]; then
+            curl -fsSL --max-time 300 -o app.apk "$SRC"
+          else
+            cp "demo/$SRC/app.apk" app.apk
+          fi
+          python3 -c "import zipfile; z=zipfile.ZipFile('app.apk'); print('apk ok:', len(z.namelist()), 'entries')"
+
+      - name: Write bug report
+        if: inputs.bug_report != ''
+        run: |
+          printf '%s' "${{ inputs.bug_report }}" > bug_report.md
+          wc -l bug_report.md
+
+      # ---- live progress channel (branch `live`, dir run-<id>) ----
+      - name: Prepare live branch
+        run: |
+          rm -rf /tmp/live && mkdir -p /tmp/live && cd /tmp/live
+          git init -q
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git fetch -q origin "$LIVE_BRANCH" 2>/dev/null && git checkout -q "$LIVE_BRANCH" || git checkout -q --orphan "$LIVE_BRANCH"
+          git config user.name "nimo-live"
+          git config user.email "nimo-live@users.noreply.github.com"
+          mkdir -p "run-$RUN_ID"
+          echo "$RUN_ID" > /tmp/run_id
+
+      - name: Run nimo pipeline (with live progress)
+        run: |
+          set -x
+          ARGS=(--apk app.apk --out out --max-minutes "${{ inputs.max_minutes }}")
+          if [ -n "${{ inputs.bug_report }}" ]; then ARGS+=(--bug bug_report.md); fi
+          if [ "${{ inputs.mode }}" = "repro" ]; then ARGS+=(--repro-only); fi
+
+          # background: every 60s push progress.json + latest screenshot to live branch
+          (
+            cd /tmp/live
+            first=1
+            while kill -0 $PPID 2>/dev/null; do
+              sleep 60
+              VISITED=$(grep -oE '\[crawl\] visiting [^ ]+ \([0-9]+/' pipeline.log 2>/dev/null | grep -oE '\([0-9]+' | tr -d '(' | tail -1)
+              TOTAL=$(grep -oE 'map: [0-9]+ activities' pipeline.log 2>/dev/null | grep -oE '[0-9]+' | head -1)
+              PHASE=$(grep -E '^\[nimo\] (Path|Analyzing|analyzing)' pipeline.log 2>/dev/null | tail -1 | sed 's/.*\] //')
+              python3 - "$VISITED" "$TOTAL" "$PHASE" <<'EOF'
+          import json, sys, datetime
+          v, t, ph = sys.argv[1], sys.argv[2], sys.argv[3]
+          d = {"status": "running",
+               "phase": ph or "starting",
+               "visited": int(v) if v else 0,
+               "total": int(t) if t else 0,
+               "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+          json.dump(d, open("run-%s/progress.json" % open("/tmp/run_id").read().strip(), "w"))
+          EOF
+              adb -s "$ANDROID_SERIAL" exec-out screencap -p > "run-$RUN_ID/latest.png" 2>/dev/null || true
+              git add "run-$RUN_ID" 2>/dev/null
+              if [ "$first" = 1 ]; then git commit -qm "run $RUN_ID progress"; first=0;
+              else git commit -q --amend --no-edit; fi
+              git push -q -f origin "$LIVE_BRANCH" || true
+            done
+          ) &
+          PUSHER=$!
+
+          python3 -m agent.pipeline "${ARGS[@]}" 2>&1 | tee pipeline.log
+          STATUS=${PIPESTATUS[0]}
+          kill $PUSHER 2>/dev/null || true
+          wait $PUSHER 2>/dev/null || true
+          echo "PIPELINE_STATUS=$STATUS" >> "$GITHUB_ENV"
+
+      - name: Build summary + final push
+        if: always()
+        run: |
+          RUNTIME="${RUNTIME:-emulator}"
+          if [ -f out/pipeline_report.json ]; then
+            python3 -m agent.summarize \
+              --report out/pipeline_report.json \
+              --out "summary.json" \
+              --android-version "${{ inputs.android_version }}" \
+              --arch "${{ inputs.arch }}" \
+              --runtime "$RUNTIME"
+          else
+            python3 - <<'EOF'
+          import json
+          json.dump({"verdict": "failed",
+                     "customer_note": "The test run did not produce a report. Check the Actions log.",
+                     "device": {"android_version": "${{ inputs.android_version }}",
+                                "arch": "${{ inputs.arch }}", "runtime": "unknown"},
+                     "bugs": [], "unreachable": [], "coverage_pct": 0,
+                     "visited": 0, "total": 0}, open("summary.json", "w"))
+          EOF
+          fi
+          adb -s "$ANDROID_SERIAL" exec-out screencap -p > final.png 2>/dev/null || true
+          cd /tmp/live
+          mkdir -p "run-$RUN_ID"
+          cp "$GITHUB_WORKSPACE/summary.json" "run-$RUN_ID/summary.json"
+          cp "$GITHUB_WORKSPACE/final.png" "run-$RUN_ID/final.png" 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/pipeline.log" "run-$RUN_ID/pipeline.log" 2>/dev/null || true
+          python3 - <<'EOF'
+          import json
+          p = "run-%s/progress.json" % open("/tmp/run_id").read().strip()
+          try:
+              d = json.load(open(p))
+          except Exception:
+              d = {}
+          d["status"] = "done"
+          json.dump(d, open(p, "w"))
+          EOF
+          git add "run-$RUN_ID"
+          git commit -q --amend --no-edit || git commit -qm "run $RUN_ID done"
+          git push -q -f origin "$LIVE_BRANCH" || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nimo-run-${{ github.run_id }}
+          path: |
+            out/
+            summary.json
+            pipeline.log
+
+      - name: Teardown redroid
+        if: always() && steps.binder.outputs.available == 'true'
+        run: docker rm -f nimo-redroid || true
