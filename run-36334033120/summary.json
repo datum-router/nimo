@@ -1,0 +1,146 @@
+{
+  "verdict": "clean",
+  "mode": "discover",
+  "device": {
+    "android_version": "13.0.0",
+    "arch": "amd64",
+    "runtime": "emulator"
+  },
+  "app": "Notepad",
+  "package": "bander.notepad",
+  "coverage_pct": 14.3,
+  "visited": 1,
+  "total": 7,
+  "bugs": [],
+  "unreachable": [
+    {
+      "activity": "bander.notepad.Preferences",
+      "reason_code": "not-exported",
+      "reason": "activity not exported and has no intent filters; only reachable via in-app UI, which never surfaced it (adb shell am start -n bander.notepad/.Preferences failed: Exception occurred while executing 'start':\njava.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=bander.notepad/.Preferences } from null (pid=4943, uid=2000) not exported from uid 10126\n\tat com.android.server.wm.ActivityTaskSupervisor.checkStartAnyActivityPermission(ActivityTaskSupervisor.java:1110)\n\tat com.android.server.wm.ActivityStarter.executeRequest(ActivityStarter.java:1024)\n\tat com.android.server.wm)"
+    },
+    {
+      "activity": "bander.notepad.NoteEdit",
+      "reason_code": "not-exported",
+      "reason": "activity not exported and has no intent filters; only reachable via in-app UI, which never surfaced it (adb shell am start -a android.intent.action.EDIT failed: Exception occurred while executing 'start':\njava.lang.SecurityE)"
+    },
+    {
+      "activity": "bander.notepad.NoteSearchResults",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (no-op (foreground: com.android.contacts/.activities.RequestPermissionsActivity))"
+    },
+    {
+      "activity": "bander.notepad.NoteImport",
+      "reason_code": "not-exported",
+      "reason": "activity not exported and has no intent filters; only reachable via in-app UI, which never surfaced it (adb shell am start -n bander.notepad/.NoteImport failed: Exception occurred while executing 'start':\njava.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=bander.notepad/.NoteImport } from null (pid=4951, uid=2000) not exported from uid 10126\n\tat com.android.server.wm.ActivityTaskSupervisor.checkStartAnyActivityPermission(ActivityTaskSupervisor.java:1110)\n\tat com.android.server.wm.ActivityStarter.executeRequest(ActivityStarter.java:1024)\n\tat com.android.server.wm.A)"
+    },
+    {
+      "activity": "bander.notepad.TitleEdit",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (no-op (foreground: com.android.launcher3/.uioverrides.QuickstepLauncher))"
+    },
+    {
+      "activity": "bander.notepad.NoteExport",
+      "reason_code": "not-exported",
+      "reason": "activity not exported and has no intent filters; only reachable via in-app UI, which never surfaced it (adb shell am start -n bander.notepad/.NoteExport failed: Exception occurred while executing 'start':\njava.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=bander.notepad/.NoteExport } from null (pid=4959, uid=2000) not exported from uid 10126\n\tat com.android.server.wm.ActivityTaskSupervisor.checkStartAnyActivityPermission(ActivityTaskSupervisor.java:1110)\n\tat com.android.server.wm.ActivityStarter.executeRequest(ActivityStarter.java:1024)\n\tat com.android.server.wm.A)"
+    }
+  ],
+  "intent_sweep": {
+    "targets": 15,
+    "reached": 4,
+    "attempts": [
+      {
+        "target": "explicit launch of bander.notepad.NoteEdit",
+        "kind": "explicit",
+        "outcome": "reached",
+        "detail": "landed on .NoteEdit"
+      },
+      {
+        "target": "custom action android.intent.action.EDIT -> bander.notepad.NoteEdit",
+        "kind": "action",
+        "outcome": "not-exported",
+        "detail": "adb shell am start -a android.intent.action.EDIT failed: Exception occurred while executing 'start':\njava.lang.SecurityException: Permission Denial: starting Intent { act=android.intent.action.EDIT fl"
+      },
+      {
+        "target": "custom action bander.notepad.action.EDIT_NOTE -> bander.notepad.NoteEdit",
+        "kind": "action",
+        "outcome": "launch-failed",
+        "detail": "no-op (foreground: com.android.launcher3/.uioverrides.QuickstepLauncher)"
+      },
+      {
+        "target": "custom action android.intent.action.INSERT -> bander.notepad.NoteEdit",
+        "kind": "action",
+        "outcome": "launch-failed",
+        "detail": "no-op (foreground: com.android.launcher3/.uioverrides.QuickstepLauncher)"
+      },
+      {
+        "target": "VIEW type vnd.android.cursor.item/vnd.bander.note -> bander.notepad.NoteEdit",
+        "kind": "mime",
+        "outcome": "launch-failed",
+        "detail": "no-op (foreground: com.android.launcher3/.uioverrides.QuickstepLauncher)"
+      },
+      {
+        "target": "VIEW type vnd.android.cursor.dir/vnd.bander.note -> bander.notepad.NoteEdit",
+        "kind": "mime",
+        "outcome": "reached",
+        "detail": "landed on .NoteList"
+      },
+      {
+        "target": "explicit launch of bander.notepad.NoteSearchResults",
+        "kind": "explicit",
+        "outcome": "reached",
+        "detail": "landed on .NoteSearchResults"
+      },
+      {
+        "target": "custom action android.intent.action.SEARCH -> bander.notepad.NoteSearchResults",
+        "kind": "action",
+        "outcome": "launch-failed",
+        "detail": "no-op (foreground: com.android.contacts/.activities.RequestPermissionsActivity)"
+      },
+      {
+        "target": "explicit launch of bander.notepad.TitleEdit",
+        "kind": "explicit",
+        "outcome": "reached",
+        "detail": "landed on .TitleEdit"
+      },
+      {
+        "target": "custom action com.android.notepad.action.EDIT_TITLE -> bander.notepad.TitleEdit",
+        "kind": "action",
+        "outcome": "launch-failed",
+        "detail": "no-op (foreground: com.android.launcher3/.uioverrides.QuickstepLauncher)"
+      },
+      {
+        "target": "explicit launch of bander.notepad.NoteList",
+        "kind": "explicit",
+        "outcome": "reached",
+        "detail": "landed on .NoteList"
+      },
+      {
+        "target": "custom action android.intent.action.MAIN -> bander.notepad.NoteList",
+        "kind": "action",
+        "outcome": "launch-failed",
+        "detail": "no-op (foreground: android/com.android.internal.app.ResolverActivity) \u2014 intent needs disambiguation"
+      },
+      {
+        "target": "custom action android.intent.action.EDIT -> bander.notepad.NoteList",
+        "kind": "action",
+        "outcome": "launch-failed",
+        "detail": "no-op (foreground: android/com.android.internal.app.ResolverActivity) \u2014 intent needs disambiguation"
+      },
+      {
+        "target": "custom action android.intent.action.PICK -> bander.notepad.NoteList",
+        "kind": "action",
+        "outcome": "launch-failed",
+        "detail": "no-op (foreground: android/com.android.internal.app.ResolverActivity) \u2014 intent needs disambiguation"
+      },
+      {
+        "target": "custom action android.intent.action.GET_CONTENT -> bander.notepad.NoteList",
+        "kind": "action",
+        "outcome": "launch-failed",
+        "detail": "no-op (foreground: android/com.android.internal.app.ResolverActivity) \u2014 intent needs disambiguation"
+      }
+    ]
+  },
+  "wall_seconds": 679.6,
+  "customer_note": "We tested Notepad on Android 13.0.0 (amd64, emulator). Visited 1/7 screens (14.3% coverage) and found no crashes. 6 screen(s) couldn't be reached \u2014 reasons are listed below.",
+  "run_artifacts": "out/"
+}
