@@ -141,6 +141,7 @@
     <a class="logo" href="#">nimo<span>.</span></a>
     <div class="navlinks">
       <a href="#modes">Modes</a>
+      <a href="#pipeline">Pipeline</a>
       <a href="#how">How it works</a>
       <a href="#demos">Demos</a>
       <a href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">GitHub</a>
@@ -194,6 +195,30 @@
         <div class="step-n">Discover</div>
         <h3>Just the APK</h3>
         <p>No bug report yet? Give nimo only the APK. It explores the app like a relentless QA engineer — every screen, every menu, every edge input — hunting for crashes on its own, and gets back to you with <b>every bug it found</b>, each with its trace and log.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pipeline" style="background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <h2 class="sec-title">Every corner. Systematically.</h2>
+    <p class="sec-sub">Free-roam exploring is a wander — the nimo pipeline works from the APK's own map: every activity launched directly, every deep link fired, every button and field exercised, login walls handled (including Google Sign-In), crashes deduped by stack fingerprint. You get honest coverage — <i>visited 21 of 23 screens</i> — with unreachable screens explained, not hidden.</p>
+    <div class="steps" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="card">
+        <div class="step-n">Map</div>
+        <h3>Static analysis</h3>
+        <p>The manifest gives up every activity, intent filter, and deep link. That's the coverage denominator — no map, no thoroughness claim.</p>
+      </div>
+      <div class="card">
+        <div class="step-n">Enter</div>
+        <h3>Login, handled</h3>
+        <p>Test credentials, automatic throwaway sign-up, or Google Sign-In through a pre-authed emulator snapshot. What it can't pass, it reports — with the reason.</p>
+      </div>
+      <div class="card">
+        <div class="step-n">Sweep</div>
+        <h3>BFS crawl + triage</h3>
+        <p>Breadth-first over every screen and element, edge-case inputs in every field, logcat watched throughout. Optional JaCoCo code coverage via the VALOR-Droid toolchain.</p>
       </div>
     </div>
   </div>
@@ -350,6 +375,10 @@
      a:"Discover mode is nimo's APK-only mode: no bug report needed. The agent explores your app like a relentless QA engineer — every screen, menu, and edge input — and gets back to you with every bug it found, each with its trace and crash log. Run it with: python -m agent.repro --discover --apk app.apk --package com.example.app --out out/"},
     {k:['reproduce','reproduction','bug report'],
      a:"Reproduce mode: hand nimo the bug report your customer sent you plus the APK. It drives the app through the report and returns a verdict — reproduced or not_reproduced — with the step-by-step trace, screenshots, and the logcat crash. A 'reproduced' verdict on a crash requires a real FATAL EXCEPTION."},
+    {k:['pipeline','every corner','systematic','full test','bfs','crawl'],
+     a:"The nimo pipeline (python -m agent.pipeline) is the systematic path: it parses the APK manifest into a map of every activity and deep link, launches each one directly, exercises every button and field breadth-first, handles login walls, dedupes crashes by stack fingerprint, and reports honest coverage — like 'visited 21 of 23 screens' — with unreachable screens explained."},
+    {k:['google','sign in with google','oauth','login'],
+     a:"For Google Sign-In, nimo uses a pre-authed emulator snapshot: a human signs the test Google account in once on a Play Store emulator image, saves the snapshot, and every run after that boots already signed in. The agent then taps the Google button, picks the account, and accepts the consent screen automatically. Details: docs/GOOGLE_LOGIN.md in the repo."},
     {k:['how does it work','how it works','how do','process','steps'],
      a:"Three steps: 1) you drop in the APK and bug report, 2) the agent installs the app and taps/types/swipes through the report like a QA engineer, 3) you get a verdict with the trace, screenshots, and logcat. Crash verdicts require a real FATAL EXCEPTION — it can't hallucinate a repro."},
     {k:['price','pricing','cost','free','paid','money'],
