@@ -157,6 +157,15 @@ def start_deep_link(uri: str) -> None:
          "-d", uri)
 
 
+def am_start(argv: list[str], timeout: int = 20) -> str:
+    """Run a raw `adb shell am start ...` command; return stdout.
+
+    `am start` exits 0 even when the intent is denied (SecurityException
+    text lands on stdout), so callers must inspect the output.
+    """
+    return _run("shell", "am", "start", *argv, timeout=timeout)
+
+
 def current_activity() -> str | None:
     """Return the focused activity component 'pkg/.Activity', if any."""
     out = _run("shell", "dumpsys", "activity", "activities")
