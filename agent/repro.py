@@ -1,13 +1,21 @@
 """Main reproduction loop for nimo.
 
-Usage:
+Two modes:
+
+repro (default) — bug report + APK in, verdict out:
     python -m agent.repro --apk demo/01-notepad/app.apk \\
         --package bander.notepad \\
         --bug demo/01-notepad/bug_report.md \\
         --out out/notepad/
 
+discover — APK only, the agent explores and hunts for bugs itself:
+    python -m agent.repro --discover --apk app.apk \\
+        --package com.example.app \\
+        --out out/discovery/
+
 Flow: install APK -> loop { dump UI -> LLM picks action -> execute ->
-check logcat } -> write repro_report.json with steps, screenshots, verdict.
+check logcat } -> write repro_report.json with steps, screenshots, verdict
+(or the list of bugs found in discover mode).
 """
 from __future__ import annotations
 
@@ -19,9 +27,11 @@ from datetime import datetime, timezone
 
 from . import device
 from .llm import LLMClient
-from .prompts import SYSTEM_PROMPT, render_step
+from .prompts import (DISCOVER_SYSTEM_PROMPT, SYSTEM_PROMPT,
+                      render_discover_step, render_step)
 
 MAX_STEPS = 25
+MAX_DISCOVER_BUGS = 5
 
 
 def _find_xy(elements: list[dict], label: str) -> tuple[int, int] | None:
@@ -35,15 +45,21 @@ def _find_xy(elements: list[dict], label: str) -> tuple[int, int] | None:
     return None
 
 
-def reproduce(apk: str, package: str, bug_report: str, out_dir: str,
-              max_steps: int = MAX_STEPS) -> dict:
+def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
+              max_steps: int = MAX_STEPS, discover: bool = False) -> dict:
+    """Run the agent.
+
+    repro mode (default): needs a bug report; verdict is reproduced/not_reproduced.
+    discover mode: no bug report; the agent explores the APK hunting for bugs and
+    returns every crash it finds.
+    """
     os.makedirs(out_dir, exist_ok=True)
     shots = os.path.join(out_dir, "screenshots")
     os.makedirs(shots, exist_ok=True)
 
     started = datetime.now(timezone.utc).isoformat()
     serial = device.check_connected()
-    print(f"[nimo] device: {serial}")
+    print(f"[nimo] device: {serial} | mode: {'discover' if discover else 'repro'}")
 
     device.force_stop(package)
     device.install(apk)
@@ -54,11 +70,14 @@ def reproduce(apk: str, package: str, bug_report: str, out_dir: str,
     llm = LLMClient()
     print(f"[nimo] llm: {llm.base_url} / {llm.model}")
 
-    with open(bug_report) as f:
-        report_text = f.read()
+    report_text = ""
+    if not discover:
+        with open(bug_report) as f:
+            report_text = f.read()
 
     history: list[str] = []
     steps: list[dict] = []
+    bugs_found: list[dict] = []
     verdict = "not_reproduced"
     crash_log: str | None = None
 
@@ -70,10 +89,15 @@ def reproduce(apk: str, package: str, bug_report: str, out_dir: str,
             elements = []
             history.append(f"step {i}: ui dump failed ({exc})")
 
+        system = DISCOVER_SYSTEM_PROMPT if discover else SYSTEM_PROMPT
+        if discover:
+            user_msg = render_discover_step(package, elements, history, len(bugs_found))
+        else:
+            user_msg = render_step(report_text, elements, history)
         action_raw = llm.chat(
             [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": render_step(report_text, elements, history)},
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_msg},
             ]
         )
         try:
@@ -130,6 +154,25 @@ def reproduce(apk: str, package: str, bug_report: str, out_dir: str,
 
         crash_log = device.recent_crash(package)
         if crash_log:
+            if discover:
+                bug = {
+                    "n": len(bugs_found) + 1,
+                    "found_at_step": i + 1,
+                    "trail": history[-8:],
+                    "crash_log": crash_log,
+                    "screenshot": f"screenshots/step_{i+1:02d}.png",
+                }
+                bugs_found.append(bug)
+                print(f"[nimo] bug #{len(bugs_found)} found — relaunching to keep hunting")
+                history.append(f"step {i}: BUG #{len(bugs_found)} captured, relaunching")
+                device.force_stop(package)
+                device.clear_logcat()
+                device.launch(package)
+                device.wait(2.0)
+                if len(bugs_found) >= MAX_DISCOVER_BUGS:
+                    print("[nimo] bug budget reached, wrapping up")
+                    break
+                continue
             verdict = "reproduced"
             history.append(f"step {i}: FATAL EXCEPTION detected in logcat")
             break
@@ -148,12 +191,15 @@ def reproduce(apk: str, package: str, bug_report: str, out_dir: str,
     report = {
         "tool": "nimo",
         "version": "0.1.0",
+        "mode": "discover" if discover else "repro",
         "started": started,
         "finished": datetime.now(timezone.utc).isoformat(),
         "apk": os.path.basename(apk),
         "package": package,
         "llm": {"base_url": llm.base_url, "model": llm.model},
-        "verdict": verdict,
+        "verdict": ("discovery_complete" if discover
+                    else verdict),
+        "bugs_found": bugs_found if discover else None,
         "steps_taken": len(steps),
         "history": history,
         "crash_log": crash_log,
@@ -161,7 +207,11 @@ def reproduce(apk: str, package: str, bug_report: str, out_dir: str,
     with open(os.path.join(out_dir, "repro_report.json"), "w") as f:
         json.dump(report, f, indent=2)
 
-    print(f"[nimo] verdict: {verdict} after {len(steps)} steps")
+    if discover:
+        print(f"[nimo] discovery complete: {len(bugs_found)} bug(s) found "
+              f"in {len(steps)} steps")
+    else:
+        print(f"[nimo] verdict: {verdict} after {len(steps)} steps")
     print(f"[nimo] report: {out_dir}/repro_report.json")
     return report
 
@@ -170,13 +220,21 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="nimo bug reproduction agent")
     ap.add_argument("--apk", required=True)
     ap.add_argument("--package", required=True)
-    ap.add_argument("--bug", required=True, help="bug report markdown file")
+    ap.add_argument("--bug", required=False, default=None,
+                    help="bug report markdown file (repro mode)")
+    ap.add_argument("--discover", action="store_true",
+                    help="APK-only exploratory bug discovery, no bug report needed")
     ap.add_argument("--out", required=True, help="output directory")
     ap.add_argument("--max-steps", type=int, default=MAX_STEPS)
     args = ap.parse_args()
+    if not args.discover and not args.bug:
+        ap.error("--bug is required unless --discover is set")
     t0 = time.time()
-    report = reproduce(args.apk, args.package, args.bug, args.out, args.max_steps)
+    report = reproduce(args.apk, args.package, args.bug, args.out,
+                       args.max_steps, discover=args.discover)
     print(f"[nimo] wall time: {time.time() - t0:.1f}s")
+    if args.discover:
+        raise SystemExit(0)
     raise SystemExit(0 if report["verdict"] == "reproduced" else 2)
 
 
