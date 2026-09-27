@@ -251,11 +251,17 @@ class Crawler:
                     entry = blockers.label(
                         a.name, "login-wall",
                         f"direct launch redirected to {self.redirects[a.name]}")
-                elif not a.exported:
-                    entry = blockers.label(a.name, "not-exported")
+                elif a.name in self.redirects:
+                    # the crawler's own direct launch is the freshest
+                    # evidence — prefer it over the sweep's older label
+                    entry = blockers.label(
+                        a.name, "launch-failed",
+                        f"direct launch redirected to {self.redirects[a.name]}")
                 elif a.name in self.sweep_labels:
                     # intent sweep already proved the precise failure
                     entry = self.sweep_labels[a.name]
+                elif not a.exported:
+                    entry = blockers.label(a.name, "not-exported")
                 elif budget_out:
                     entry = blockers.label(a.name, "budget-exhausted")
                 else:
@@ -286,6 +292,12 @@ class Crawler:
     def _visit_activity(self, activity: str) -> None:
         pkg = self.meta.package
         comp = apkmeta.component(pkg, activity)
+        # Cold start, like the intent sweep: a warm task can swallow the
+        # launch (the activity finishes instantly back into the existing
+        # task), while force-stopped explicit launches land reliably.
+        # Clearing logcat keeps crash attribution to this launch only.
+        device.force_stop(pkg)
+        device.clear_logcat()
         # the intent sweep may have left an external app (or a chooser)
         # modal in the foreground — clear it or this launch no-ops
         device.reset_foreground(pkg)

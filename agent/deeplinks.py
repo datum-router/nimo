@@ -151,7 +151,10 @@ def fire_all(package: str, targets: list[dict],
                 detail = str(e)[:200]
         attempts.append({"target": t["summary"], "kind": t["kind"],
                          "outcome": outcome, "detail": detail})
-        if outcome != "reached" and not any(
+        # An activity is unreachable only if NONE of its targets reached it —
+        # one failed intent must not condemn an activity another target
+        # already landed on.
+        if outcome != "reached" and activity not in reached_set and not any(
                 u["activity"] == activity for u in unreachable):
             code = {"not-exported": "not-exported",
                     "crash-on-launch": "crash-on-launch"}.get(outcome,
