@@ -28,9 +28,13 @@ bug report (md) + APK
 2. **Loop (max 25 steps)** —
    dump UI hierarchy → ask the LLM for one JSON action → execute it over adb
    → screenshot → scan logcat for `FATAL EXCEPTION` in the target package.
-3. **Verdict** — `reproduced` if the LLM declares it done-positive or a
-   crash is caught in logcat; otherwise `not_reproduced`. Non-crash bugs are
-   verified by UI state (the agent reasons about what it sees).
+3. **Verdict** —
+   - *repro mode:* `reproduced` if the LLM declares it done-positive or a
+     crash is caught in logcat; otherwise `not_reproduced`. Non-crash bugs are
+     verified by UI state (the agent reasons about what it sees).
+   - *discover mode (`--discover`):* every crash found is captured with its
+     trail and screenshot, the app is relaunched, and the hunt continues —
+     up to 5 bugs per run. Report lists them all.
 4. **Report** — everything lands in the output dir as JSON + PNGs.
 
 ## Design choices
@@ -46,6 +50,7 @@ bug report (md) + APK
   sequence, environment-dependent crash, non-crash behavior).
 
 ## What's next
+- Guided discovery goals ("stress the checkout flow") on top of free exploration
 - iOS support (same loop, different driver)
 - Web dashboard + hosted API: submit APK + report, get back the verdict
 - Fix suggestion pass: from crash stack to patch candidate
