@@ -182,11 +182,9 @@ jobs:
         with:
           api-level: ${{ steps.env.outputs.api_level }}
           arch: x86_64
-          script: |
-            adb -s emulator-5554 wait-for-device
-            bash "$GITHUB_WORKSPACE/agent/run_pipeline.sh" emulator emulator-5554 \
-              "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" \
-              "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ inputs.bug_report != '' }}"
+          # NOTE: this action executes the script line-by-line, so the whole
+          # invocation must be a single line (no backslash continuations).
+          script: adb -s emulator-5554 wait-for-device && bash "$GITHUB_WORKSPACE/agent/run_pipeline.sh" emulator emulator-5554 "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ inputs.bug_report != '' }}"
 
       - name: Run nimo pipeline (with live progress)
         if: steps.binder.outputs.available == 'true'
