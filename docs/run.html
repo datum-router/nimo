@@ -78,20 +78,29 @@ footer{border-top:1px solid var(--line);margin-top:50px;padding:26px 0;color:var
   <!-- ============ CONFIG ============ -->
   <div id="config">
     <div class="card">
-      <h3>1 · Device</h3>
+      <h3>1 · Connect</h3>
+      <label>GitHub token <span style="opacity:.6">(needs Actions: write on datum-router/nimo — <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener" style="color:var(--acc)">create one here</a>, fine-grained, repository access: datum-router/nimo, permissions: Actions → read &amp; write)</span></label>
+      <input type="password" id="f-token" placeholder="github_pat_…" autocomplete="off">
+      <p class="hint">Saved only in this browser (localStorage). The page uses it to start your test run — nothing else. <span id="tok-state"></span></p>
+    </div>
+
+    <div class="card">
+      <h3>2 · Device</h3>
       <div class="row">
         <div>
           <label>Android version</label>
           <select id="f-version">
+            <option value="auto" selected>Auto — picked from the APK</option>
             <option>16.0.0</option><option>15.0.0</option><option>14.0.0</option>
-            <option selected>13.0.0</option><option>12.0.0</option><option>11.0.0</option>
+            <option>13.0.0</option><option>12.0.0</option><option>11.0.0</option>
             <option>10.0.0</option><option>9.0.0</option><option>8.1.0</option>
           </select>
         </div>
         <div>
           <label>Architecture</label>
           <select id="f-arch">
-            <option value="amd64" selected>amd64 (x86_64)</option>
+            <option value="auto" selected>Auto — picked from the APK</option>
+            <option value="amd64">amd64 (x86_64)</option>
             <option value="arm64">arm64 — needs self-hosted runner</option>
           </select>
         </div>
@@ -100,31 +109,38 @@ footer{border-top:1px solid var(--line);margin-top:50px;padding:26px 0;color:var
     </div>
 
     <div class="card">
-      <h3>2 · What to test</h3>
+      <h3>3 · What to test</h3>
       <label>Test mode</label>
       <div class="modes">
         <label><input type="radio" name="mode" value="pipeline" checked><span>Full pipeline</span></label>
         <label><input type="radio" name="mode" value="repro"><span>Reproduce a bug</span></label>
         <label><input type="radio" name="mode" value="discover"><span>Discover bugs</span></label>
       </div>
-      <div class="row">
-        <div>
-          <label>APK — one of our demos</label>
-          <select id="f-demo">
-            <option value="01-notepad">01 · Notepad (send-note crash)</option>
-            <option value="02-atimetracker">02 · AtimeTracker (restore crash)</option>
-            <option value="03-asciicam">03 · AsciiCam (rotate+delete crash)</option>
-            <option value="04-comicviewer">04 · ComicViewer (startup crash)</option>
-            <option value="05-kiss">05 · KISS launcher (favorites bug)</option>
-          </select>
-        </div>
-        <div>
-          <label>…or your own APK via https URL</label>
-          <input type="url" id="f-url" placeholder="https://example.com/app.apk">
-        </div>
+      <label>APK source</label>
+      <div class="modes" style="margin-bottom:4px">
+        <label><input type="radio" name="apksrc" value="demo" checked><span>Demo APK</span></label>
+        <label><input type="radio" name="apksrc" value="custom"><span>My own APK</span></label>
       </div>
-      <label>Bug report <span style="opacity:.6">(repro mode — paste the report your customer sent)</span></label>
+      <div id="src-demo">
+        <label>Pick a demo</label>
+        <select id="f-demo">
+          <option value="01-notepad">01 · Notepad (send-note crash)</option>
+          <option value="02-atimetracker">02 · AtimeTracker (restore crash)</option>
+          <option value="03-asciicam">03 · AsciiCam (rotate+delete crash)</option>
+          <option value="04-comicviewer">04 · ComicViewer (startup crash)</option>
+          <option value="05-kiss">05 · KISS launcher (favorites bug)</option>
+        </select>
+      </div>
+      <div id="src-custom" style="display:none">
+        <label>APK download link (https)</label>
+        <input type="url" id="f-url" placeholder="https://example.com/app.apk">
+        <label>…or upload an APK file</label>
+        <input type="file" id="f-file" accept=".apk,application/vnd.android.package-archive" style="color:var(--mut);font-size:14px">
+        <p class="hint" id="f-upload-status">Upload is optional — a link is enough. An uploaded file goes to a temporary file host for this test run only, then the test runner downloads it.</p>
+      </div>
+      <label>Bug report <span style="opacity:.6">(repro mode — paste the report your customer sent, or attach the file)</span></label>
       <textarea id="f-bug" placeholder="Title: …&#10;Steps: …&#10;Expected: …&#10;Observed: …"></textarea>
+      <input type="file" id="f-bugfile" accept=".txt,.md,.text,text/plain" style="color:var(--mut);font-size:14px;margin-top:8px">
       <div class="row">
         <div>
           <label>Max test time (minutes)</label>
@@ -137,7 +153,7 @@ footer{border-top:1px solid var(--line);margin-top:50px;padding:26px 0;color:var
     <p class="hint" id="worker-note"></p>
     <div class="card" id="manual" style="display:none">
       <h3>Manual trigger</h3>
-      <p class="hint">The auto-dispatch worker isn't configured yet — run this from any terminal (needs a token with Actions:write on datum-router/nimo):</p>
+      <p class="hint">No token handy? Run this from any terminal (needs a token with Actions:write on datum-router/nimo):</p>
       <pre id="manual-cmd"></pre>
     </div>
   </div>
@@ -191,17 +207,48 @@ const RAW = `https://raw.githubusercontent.com/${REPO}/live`;
 const $ = id => document.getElementById(id);
 let runId = null, pollTimers = [];
 
+// token: restored from this browser only
+try { $("f-token").value = localStorage.getItem("nimo_gh_token") || ""; } catch(e) {}
+$("f-token").addEventListener("input", () => {
+  try { localStorage.setItem("nimo_gh_token", $("f-token").value.trim()); } catch(e) {}
+  $("tok-state").textContent = "";
+});
+
+// APK source toggle
+document.querySelectorAll('input[name=apksrc]').forEach(r =>
+  r.addEventListener("change", () => {
+    const custom = document.querySelector('input[name=apksrc]:checked').value === "custom";
+    $("src-demo").style.display = custom ? "none" : "block";
+    $("src-custom").style.display = custom ? "block" : "none";
+    updateManualCmd();
+  }));
+
+// bug report file -> textarea
+$("f-bugfile").addEventListener("change", () => {
+  const f = $("f-bugfile").files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { $("f-bug").value = String(rd.result || "").slice(0, 20000); updateManualCmd(); };
+  rd.readAsText(f);
+});
+
 if (!WORKER_URL) {
-  $("worker-note").textContent = "Auto-dispatch isn't wired up yet — configure WORKER_URL (see worker/README.md), or trigger manually:";
+  $("worker-note").textContent = "No dispatch worker configured — the page can start runs directly with your token (stored only in this browser), or trigger manually:";
   $("manual").style.display = "block";
   updateManualCmd();
-  ["f-version","f-arch","f-demo","f-url","f-bug","f-minutes"].forEach(id =>
+  ["f-version","f-arch","f-demo","f-url","f-bug","f-minutes","f-token"].forEach(id =>
     $(id).addEventListener("input", updateManualCmd));
-  document.querySelectorAll('input[name=mode]').forEach(r =>
+  document.querySelectorAll('input[name=mode],input[name=apksrc]').forEach(r =>
     r.addEventListener("change", updateManualCmd));
 }
 function mode(){ return document.querySelector('input[name=mode]:checked').value; }
-function apkSource(){ const u = $("f-url").value.trim(); return u || $("f-demo").value; }
+function apkSrcMode(){ return document.querySelector('input[name=apksrc]:checked').value; }
+function apkSource(){
+  if (apkSrcMode() === "demo") return $("f-demo").value;
+  const f = $("f-file").files[0];
+  if (f) return "(uploaded file: " + f.name + ")";
+  return $("f-url").value.trim();
+}
 function updateManualCmd(){
   const bug = $("f-bug").value.replace(/"/g,'\\"').replace(/\n/g,"\\n");
   $("manual-cmd").textContent =
@@ -210,22 +257,63 @@ function updateManualCmd(){
   -d '{"ref":"main","inputs":{"android_version":"${$("f-version").value}","arch":"${$("f-arch").value}","mode":"${mode()}","apk_source":"${apkSource()}","bug_report":"${bug}","max_minutes":"${$("f-minutes").value}"}}'`;
 }
 
+async function uploadApk(file){
+  const st = $("f-upload-status");
+  st.textContent = "Uploading " + file.name + " (" + Math.round(file.size/1024) + " KB)…";
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  const r = await fetch("https://tmpfiles.org/api/v1/upload", { method: "POST", body: fd });
+  if (!r.ok) throw new Error("upload failed (HTTP " + r.status + ")");
+  const j = await r.json();
+  let url = j && j.data && j.data.url;
+  if (!url) throw new Error("upload failed — no URL returned");
+  url = url.replace("https://tmpfiles.org/", "https://tmpfiles.org/dl/");
+  st.textContent = "Uploaded — the test runner will download it from the temporary link.";
+  return url;
+}
+
 async function dispatch(){
   const m = mode(), bug = $("f-bug").value.trim();
-  if (m === "repro" && !bug) { alert("Repro mode needs a bug report — paste one in."); return; }
-  if (!WORKER_URL) { alert("Auto-dispatch isn't configured yet — use the manual command below."); return; }
+  if (m === "repro" && !bug) { alert("Repro mode needs a bug report — paste or attach one."); return; }
   const btn = $("btn-run"); btn.disabled = true; btn.textContent = "Kicking off…";
   try {
-    const r = await fetch(WORKER_URL, { method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ android_version:$("f-version").value, arch:$("f-arch").value,
-        mode:m, apk_source:apkSource(), bug_report:bug, max_minutes:$("f-minutes").value }) });
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.error || "dispatch failed");
-    startTracking(j.dispatched_at, { version:$("f-version").value, arch:$("f-arch").value, mode:m });
+    // resolve the APK: demo id, https link, or uploaded file
+    let src;
+    if (apkSrcMode() === "demo") {
+      src = $("f-demo").value;
+    } else {
+      const file = $("f-file").files[0], url = $("f-url").value.trim();
+      if (file) src = await uploadApk(file);
+      else if (/^https:\/\//i.test(url)) src = url;
+      else throw new Error("Give an https APK link or upload an APK file.");
+    }
+    const inputs = { android_version:$("f-version").value, arch:$("f-arch").value,
+      mode:m, apk_source:src, bug_report:bug, max_minutes:$("f-minutes").value };
+    let dispatchedAt;
+    if (WORKER_URL) {
+      const r = await fetch(WORKER_URL, { method:"POST",
+        headers:{"Content-Type":"application/json"}, body: JSON.stringify(inputs) });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "dispatch failed");
+      dispatchedAt = j.dispatched_at;
+    } else {
+      const token = $("f-token").value.trim();
+      if (!token) throw new Error("Add your GitHub token above (or use the manual command below).");
+      const r = await fetch(`${API}/dispatches`, { method:"POST",
+        headers:{ "Authorization":"Bearer " + token,
+          "Accept":"application/vnd.github+json", "Content-Type":"application/json" },
+        body: JSON.stringify({ ref:"main", inputs }) });
+      if (r.status === 401) throw new Error("Token rejected (401) — check it and try again.");
+      if (r.status === 403) throw new Error("Token lacks permission (403) — it needs Actions: write on datum-router/nimo.");
+      if (r.status === 404) throw new Error("Workflow not found (404) — is the token scoped to datum-router/nimo?");
+      if (!r.ok) throw new Error("GitHub API error " + r.status);
+      dispatchedAt = new Date().toISOString();
+      $("tok-state").textContent = "✓ token accepted";
+    }
+    startTracking(dispatchedAt, { version:$("f-version").value, arch:$("f-arch").value, mode:m });
   } catch(e) {
     alert("Couldn't start the run: " + e.message);
-    btn.disabled = false; btn.textContent = "▶  Run the test";
+    btn.disabled = false; btn.textContent = "▶  Run the test";
   }
 }
 
@@ -324,6 +412,7 @@ async function finish(conclusion){
 function renderResult(s){
   const v = $("r-verdict"), pill = $("r-pill");
   const titles = { bugs_found:["Bugs found", "v-bad"], clean:["Clean — no crashes","v-good"],
+    inconclusive:["Inconclusive — nothing tested","v-warn"],
     reproduced:["Bug reproduced","v-bad"], not_reproduced:["Not reproduced","v-warn"], failed:["Run failed","v-bad"] };
   const [t, c] = titles[s.verdict] || [s.verdict, "v-warn"];
   v.textContent = t; v.className = "verdict " + c;
