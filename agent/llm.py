@@ -32,9 +32,10 @@ class LLMClient:
         model: str | None = None,
         timeout: int = 120,
     ) -> None:
-        self.base_url = (base_url or os.environ.get("NIMO_BASE_URL", DEFAULT_BASE_URL)).rstrip("/")
-        self.api_key = api_key or os.environ.get("NIMO_API_KEY", "not-needed")
-        self.model = model or os.environ.get("NIMO_MODEL", DEFAULT_MODEL)
+        self.base_url = (base_url or os.environ.get("NIMO_BASE_URL")
+                         or DEFAULT_BASE_URL).rstrip("/")
+        self.api_key = api_key or os.environ.get("NIMO_API_KEY") or "not-needed"
+        self.model = model or os.environ.get("NIMO_MODEL") or DEFAULT_MODEL
         self.timeout = timeout
 
     def chat(self, messages: list[dict], temperature: float = 0.2,

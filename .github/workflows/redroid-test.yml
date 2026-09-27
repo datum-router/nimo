@@ -53,6 +53,12 @@ jobs:
     env:
       RUN_ID: ${{ github.run_id }}
       LIVE_BRANCH: live
+      # LLM provider override (all optional — unset = Pollinations free tier).
+      # Add values as repo secrets: Settings → Secrets and variables →
+      # Actions → New repository secret. Never commit keys.
+      NIMO_BASE_URL: ${{ secrets.NIMO_BASE_URL }}
+      NIMO_API_KEY: ${{ secrets.NIMO_API_KEY }}
+      NIMO_MODEL: ${{ secrets.NIMO_MODEL }}
     steps:
       - uses: actions/checkout@v4
 
