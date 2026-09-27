@@ -19,6 +19,20 @@ def _silence_androguard() -> None:
         pass
 
 
+def _filter_names(value) -> list[str]:
+    """androguard get_intent_filters values: list of str, or dicts."""
+    out: list[str] = []
+    items = value.keys() if isinstance(value, dict) else value
+    if isinstance(items, str):
+        return [items]
+    for v in items or []:
+        if isinstance(v, str):
+            out.append(v)
+        elif isinstance(v, dict):
+            out.extend(k for k in v.keys() if isinstance(k, str))
+    return out
+
+
 @dataclass
 class ActivityInfo:
     name: str                 # fully qualified class name
@@ -26,6 +40,9 @@ class ActivityInfo:
     is_main: bool = False
     deep_links: list[str] = field(default_factory=list)
     has_intent_filter: bool = False
+    actions: list[str] = field(default_factory=list)      # custom intent actions
+    categories: list[str] = field(default_factory=list)
+    mime_types: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -64,6 +81,9 @@ def analyze(apk_path: str) -> ApkMeta:
         except Exception:
             exported = False
         links: list[str] = []
+        actions: list[str] = []
+        categories: list[str] = []
+        mime_types: list[str] = []
         has_filter = False
         try:
             filters = a.get_intent_filters("activity", raw)
@@ -77,6 +97,15 @@ def analyze(apk_path: str) -> ApkMeta:
                     links.append(f"{scheme}://{host}{path}")
                 elif scheme:
                     links.append(f"{scheme}:")
+                mime = f.get("mimeType", "")
+                if mime and mime not in mime_types:
+                    mime_types.append(mime)
+            for act in _filter_names(filters.get("action", [])):
+                if act and act not in actions:
+                    actions.append(act)
+            for cat in _filter_names(filters.get("category", [])):
+                if cat and cat not in categories:
+                    categories.append(cat)
         except Exception:
             pass
         # Pre-Android-12 APKs often omit android:exported; an activity with
@@ -88,6 +117,9 @@ def analyze(apk_path: str) -> ApkMeta:
             is_main=(name == main),
             deep_links=links,
             has_intent_filter=has_filter,
+            actions=actions,
+            categories=categories,
+            mime_types=mime_types,
         ))
 
     try:
