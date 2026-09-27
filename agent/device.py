@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import re
 import subprocess
 import tempfile
 import time
@@ -140,3 +141,55 @@ def recent_crash(package: str, since_s: float | None = None) -> str | None:
 
 def wait(s: float = 1.0) -> None:
     time.sleep(s)
+
+
+def start_activity(component: str) -> None:
+    """Launch an activity directly, e.g. 'com.pkg/.MainActivity'.
+
+    This is how the crawler reaches deep screens without navigating the UI.
+    """
+    _run("shell", "am", "start", "-n", component)
+
+
+def start_deep_link(uri: str) -> None:
+    """Fire a VIEW intent for a deep-link URI from the manifest."""
+    _run("shell", "am", "start", "-a", "android.intent.action.VIEW",
+         "-d", uri)
+
+
+def current_activity() -> str | None:
+    """Return the focused activity component 'pkg/.Activity', if any."""
+    out = _run("shell", "dumpsys", "activity", "activities")
+    m = re.search(r"mFocusedApp=ActivityRecord\{[^}]*\s(\S+/\S+)", out)
+    if m:
+        return m.group(1)
+    m = re.search(r"mCurrentFocus=Window\{[^}]*\s(\S+/\S+)", out)
+    return m.group(1) if m else None
+
+
+def current_package() -> str | None:
+    act = current_activity()
+    return act.split("/")[0] if act else None
+
+
+def grant_permissions(package: str, permissions: list[str]) -> None:
+    """Grant install-time permissions so dialogs don't block the crawl."""
+    for p in permissions:
+        try:
+            _run("shell", "pm", "grant", package, p)
+        except DeviceError:
+            pass  # not all permissions are grantable; the crawler dismisses the rest
+
+
+def send_sms(code: str) -> None:
+    """Deliver an SMS to the emulator (for OTP screens on emulators)."""
+    _run("emu", "sms", "send", "5550100", code)
+
+
+def pull_file(remote: str, local: str) -> bool:
+    """Best-effort `adb pull`. Returns False instead of raising."""
+    try:
+        _run("pull", remote, local)
+        return True
+    except DeviceError:
+        return False
