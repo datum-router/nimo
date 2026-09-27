@@ -177,6 +177,12 @@ def recommend_env(apk_path: str) -> dict:
 
     # Android version: newest image the APK can actually install on
     pf = check(apk_path)
+    if not pf.ok:
+        # Never recommend an environment from a failed preflight — a
+        # degraded guess (e.g. targetSdk unknown -> newest Android) would
+        # send the run into an uninstallable image 10 minutes in.
+        raise RuntimeError(f"preflight failed, cannot recommend environment: "
+                           f"{'; '.join(pf.failures)}")
     max_api = int(pf.info.get("max_api") or 35)
     min_sdk = pf.info.get("min_sdk")
     rec["max_api"] = max_api
