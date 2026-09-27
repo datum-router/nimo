@@ -205,6 +205,17 @@ jobs:
           docker logs nimo-redroid || true
           exit 1
 
+      # The emulator binary needs system audio/GL libraries that some
+      # runner images lack — without them qemu dies on startup with
+      # "libpulse.so.0: cannot open shared object file" and the boot
+      # step then burns 10 minutes retrying adb before timing out.
+      - name: Install emulator system libraries
+        if: steps.binder.outputs.available != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libpulse0 libgl1 libasound2t64 libnss3 libxss1 2>/dev/null \
+            || sudo apt-get install -y -qq libpulse0 libgl1 libasound2
+
       # Cache the emulator system image between runs: the download is
       # ~1GB and dominates cold-boot time on the fallback path.
       - name: Cache Android system image
