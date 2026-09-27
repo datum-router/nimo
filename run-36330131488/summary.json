@@ -1,0 +1,55 @@
+{
+  "verdict": "clean",
+  "mode": "discover",
+  "device": {
+    "android_version": "13.0.0",
+    "arch": "amd64",
+    "runtime": "emulator"
+  },
+  "app": "Notepad",
+  "package": "bander.notepad",
+  "coverage_pct": 0.0,
+  "visited": 0,
+  "total": 7,
+  "bugs": [],
+  "unreachable": [
+    {
+      "activity": "bander.notepad.Preferences",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (adb shell am start -n bander.notepad/.Preferences failed: Exception occurred while executing 'start':\njava.lang.Security)"
+    },
+    {
+      "activity": "bander.notepad.NoteImport",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (adb shell am start -n bander.notepad/.NoteImport failed: Exception occurred while executing 'start':\njava.lang.SecurityE)"
+    },
+    {
+      "activity": "bander.notepad.NoteList",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (no-op (foreground: com.android.permissioncontroller/.permission.ui.GrantPermissionsActivity}))"
+    },
+    {
+      "activity": "bander.notepad.NoteSearchResults",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (no-op (foreground: com.android.launcher3/.uioverrides.QuickstepLauncher}))"
+    },
+    {
+      "activity": "bander.notepad.NoteExport",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (adb shell am start -n bander.notepad/.NoteExport failed: Exception occurred while executing 'start':\njava.lang.SecurityE)"
+    },
+    {
+      "activity": "bander.notepad.NoteEdit",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (no-op (foreground: com.android.permissioncontroller/.permission.ui.GrantPermissionsActivity}))"
+    },
+    {
+      "activity": "bander.notepad.TitleEdit",
+      "reason_code": "launch-failed",
+      "reason": "direct launch failed (no-op (foreground: com.android.permissioncontroller/.permission.ui.GrantPermissionsActivity}))"
+    }
+  ],
+  "wall_seconds": 278.4,
+  "customer_note": "We tested Notepad on Android 13.0.0 (amd64, emulator). Visited 0/7 screens (0.0% coverage) and found no crashes. 7 screen(s) couldn't be reached \u2014 reasons are listed below.",
+  "run_artifacts": "out/"
+}
