@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nimo — send a bug report, get back a verified reproduction</title>
+<meta name="description" content="nimo is an agent that reproduces Android bug reports on real devices and returns a verified verdict with steps, screenshots, and crash logs.">
+<style>
+  :root{
+    --bg:#0a0a10; --bg2:#101018; --card:#14141d; --line:#23232f;
+    --txt:#eef0f6; --mut:#9aa0b4; --acc:#4ade80; --acc2:#22d3ee;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    line-height:1.6;overflow-x:hidden}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;background:rgba(10,10,16,.85);
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .logo{font-weight:800;font-size:22px;letter-spacing:-.5px}
+  .logo span{color:var(--acc)}
+  .navlinks{display:flex;gap:28px;color:var(--mut);font-size:15px}
+  .navlinks a:hover{color:var(--txt)}
+  .btn{display:inline-block;padding:12px 26px;border-radius:10px;font-weight:600;
+    font-size:15px;transition:transform .15s,box-shadow .15s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn-acc{background:var(--acc);color:#06130b}
+  .btn-acc:hover{box-shadow:0 8px 30px rgba(74,222,128,.35)}
+  .btn-ghost{border:1px solid var(--line);color:var(--txt)}
+  .btn-ghost:hover{border-color:var(--acc)}
+  .btn-sm{padding:9px 18px;font-size:14px}
+
+  /* hero */
+  .hero{padding:96px 0 64px;position:relative}
+  .hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+  .kicker{display:inline-block;font-size:13px;color:var(--acc);border:1px solid #1d3a28;
+    background:#0e1f14;padding:6px 14px;border-radius:999px;margin-bottom:24px;font-weight:600}
+  h1{font-size:52px;line-height:1.08;letter-spacing:-1.5px;margin-bottom:20px}
+  h1 .grad{background:linear-gradient(90deg,var(--acc),var(--acc2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--mut);font-size:18px;margin-bottom:36px;max-width:480px}
+  .cta{display:flex;gap:14px;flex-wrap:wrap}
+
+  /* terminal */
+  .term{background:#0d0d14;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    box-shadow:0 24px 80px rgba(0,0,0,.5)}
+  .term-bar{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .term-body{padding:20px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:13.5px;min-height:340px;color:#c9cede}
+  .term-body .p{color:var(--acc)}
+  .term-body .dim{color:#5b6172}
+  .term-body .warn{color:#fbbf24}
+  .term-body .ok{color:var(--acc);font-weight:700}
+  .caret{display:inline-block;width:8px;height:16px;background:var(--acc);
+    vertical-align:-3px;animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:0}}
+
+  /* sections */
+  section{padding:72px 0}
+  .sec-title{font-size:32px;letter-spacing:-.8px;margin-bottom:12px}
+  .sec-sub{color:var(--mut);margin-bottom:44px;max-width:620px}
+
+  /* steps */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px}
+  .card:hover{border-color:#2e2e3d}
+  .step-n{font-size:13px;font-weight:700;color:var(--acc2);margin-bottom:12px;
+    text-transform:uppercase;letter-spacing:1px}
+  .card h3{font-size:19px;margin-bottom:10px}
+  .card p{color:var(--mut);font-size:15px}
+  .card code{background:#0a0a10;border:1px solid var(--line);border-radius:6px;
+    padding:2px 8px;font-size:13px;color:var(--acc2)}
+
+  /* demos */
+  .demos{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+  .demo-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .tag{font-size:12px;font-weight:700;padding:4px 12px;border-radius:999px}
+  .tag.crash{background:#2a1414;color:#f87171;border:1px solid #4a2020}
+  .tag.behav{background:#14232a;color:#38bdf8;border:1px solid #1e3a4a}
+  .demo-size{color:var(--mut);font-size:13px}
+  .demo-steps{margin-top:14px;font-size:13.5px;color:var(--mut)}
+  .demo-steps li{margin-bottom:6px;list-style:none}
+  .demo-steps li::before{content:"→ ";color:var(--acc)}
+
+  /* tech strip */
+  .strip{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .strip .wrap{display:flex;gap:40px;flex-wrap:wrap;padding-top:36px;padding-bottom:36px;
+    justify-content:center;color:var(--mut);font-size:14px}
+  .strip b{color:var(--txt)}
+
+  footer{padding:48px 0;color:var(--mut);font-size:14px;border-top:1px solid var(--line)}
+  footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+  footer a:hover{color:var(--acc)}
+
+  /* orb */
+  #orb{position:fixed;right:26px;bottom:26px;z-index:100;width:60px;height:60px;
+    border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));
+    border:none;cursor:pointer;box-shadow:0 10px 34px rgba(74,222,128,.4);
+    display:flex;align-items:center;justify-content:center;transition:transform .2s}
+  #orb:hover{transform:scale(1.08)}
+  #orb .pulse{position:absolute;inset:0;border-radius:50%;
+    border:2px solid var(--acc);animation:pulse 2s infinite}
+  @keyframes pulse{0%{transform:scale(1);opacity:.8}100%{transform:scale(1.5);opacity:0}}
+  #orb svg{width:26px;height:26px}
+  #chat{position:fixed;right:26px;bottom:100px;z-index:100;width:340px;max-height:480px;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    display:none;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  #chat.open{display:flex}
+  #chat-head{padding:14px 18px;border-bottom:1px solid var(--line);font-weight:700;
+    display:flex;align-items:center;gap:10px}
+  #chat-head .on{width:9px;height:9px;border-radius:50%;background:var(--acc)}
+  #chat-head small{color:var(--mut);font-weight:400}
+  #chat-body{padding:16px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px;
+    min-height:220px;max-height:320px}
+  .msg{max-width:85%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5}
+  .msg.bot{background:#1c1c28;align-self:flex-start;border-bottom-left-radius:4px}
+  .msg.user{background:#17351f;align-self:flex-end;border-bottom-right-radius:4px}
+  #chat-foot{display:flex;border-top:1px solid var(--line)}
+  #chat-in{flex:1;background:transparent;border:none;color:var(--txt);padding:14px 16px;
+    font-size:14px;outline:none}
+  #chat-send{background:transparent;border:none;color:var(--acc);padding:0 18px;
+    cursor:pointer;font-weight:700;font-size:14px}
+
+  @media(max-width:860px){
+    .hero-grid{grid-template-columns:1fr}
+    h1{font-size:38px}
+    .steps{grid-template-columns:1fr}
+    .navlinks{display:none}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="#">nimo<span>.</span></a>
+    <div class="navlinks">
+      <a href="#how">How it works</a>
+      <a href="#demos">Demos</a>
+      <a href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <a class="btn btn-acc btn-sm" href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">Get started</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="kicker">AI bug-reproduction agent</div>
+      <h1>Send a bug report.<br><span class="grad">Get back a verified reproduction.</span></h1>
+      <p class="sub">nimo takes a plain-text bug report and an Android APK, drives the app on a real device, and returns a verdict — reproduced or not — with the exact steps, screenshots, and the crash log. No SDK. No instrumentation.</p>
+      <div class="cta">
+        <a class="btn btn-acc" href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">Try the demo</a>
+        <a class="btn btn-ghost" href="#how">How it works</a>
+      </div>
+    </div>
+    <div class="term">
+      <div class="term-bar">
+        <div class="dot" style="background:#f87171"></div>
+        <div class="dot" style="background:#fbbf24"></div>
+        <div class="dot" style="background:#4ade80"></div>
+      </div>
+      <div class="term-body" id="term"></div>
+    </div>
+  </div>
+</header>
+
+<div class="strip">
+  <div class="wrap">
+    <span><b>No SDK</b> to integrate</span>
+    <span><b>Free LLM</b> by default</span>
+    <span><b>Real devices</b>, not mocks</span>
+    <span><b>Verdict</b> you can trust</span>
+  </div>
+</div>
+
+<section id="how">
+  <div class="wrap">
+    <h2 class="sec-title">How it works</h2>
+    <p class="sec-sub">Three inputs in, one trustworthy answer out.</p>
+    <div class="steps">
+      <div class="card">
+        <div class="step-n">Step 1</div>
+        <h3>Drop in the bug</h3>
+        <p>Hand nimo the APK and the bug report as plain markdown — title, steps, expected vs. observed behavior. That's the whole integration.</p>
+      </div>
+      <div class="card">
+        <div class="step-n">Step 2</div>
+        <h3>The agent drives the app</h3>
+        <p>nimo installs the app, reads the screen, and taps, types, and swipes its way through the report — reasoning about each screen like a QA engineer, powered by <code>Pollinations AI</code> (free, no key).</p>
+      </div>
+      <div class="card">
+        <div class="step-n">Step 3</div>
+        <h3>Get a verdict</h3>
+        <p><code>reproduced</code> or <code>not_reproduced</code> — with the step-by-step trace, screenshots, and the logcat crash. Crash verdicts require a real <code>FATAL EXCEPTION</code>: the agent can't hallucinate a repro.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="demos" style="background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <h2 class="sec-title">Five demos, five bug shapes</h2>
+    <p class="sec-sub">Tiny APKs, each under a megabyte. Every one reproduces in about a minute on an emulator.</p>
+    <div class="demos">
+      <div class="card">
+        <div class="demo-top"><span class="tag crash">crash</span><span class="demo-size">40 KB</span></div>
+        <h3>Notepad</h3>
+        <p>Long-press a note → "Send Note" → instant crash.</p>
+        <ul class="demo-steps"><li>Fastest end-to-end run</li><li>One-line bug report</li></ul>
+      </div>
+      <div class="card">
+        <div class="demo-top"><span class="tag crash">crash</span><span class="demo-size">74 KB</span></div>
+        <h3>A Time Tracker</h3>
+        <p>Restore a backup that doesn't exist → "has stopped".</p>
+        <ul class="demo-steps"><li>State-dependent crash</li><li>Exact menu navigation</li></ul>
+      </div>
+      <div class="card">
+        <div class="demo-top"><span class="tag crash">crash</span><span class="demo-size">678 KB</span></div>
+        <h3>AsciiCam</h3>
+        <p>Duplicate a photo, rotate mid-flow, delete → IndexOutOfBounds.</p>
+        <ul class="demo-steps"><li>Ordered 4-step sequence</li><li>Device rotation mid-run</li></ul>
+      </div>
+      <div class="card">
+        <div class="demo-top"><span class="tag crash">crash</span><span class="demo-size">475 KB</span></div>
+        <h3>Comic Viewer</h3>
+        <p>Settings → About → Google Play listing crashes on devices without Google Play.</p>
+        <ul class="demo-steps"><li>Environment-dependent bug</li><li>Only fails on some devices</li></ul>
+      </div>
+      <div class="card">
+        <div class="demo-top"><span class="tag behav">behavior</span><span class="demo-size">632 KB</span></div>
+        <h3>KISS Launcher</h3>
+        <p>Favorites bar never appears under a specific settings combo. Nothing crashes — the UI is just wrong.</p>
+        <ul class="demo-steps"><li>Non-crash verification</li><li>Settings-state reasoning</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap" style="text-align:center">
+    <h2 class="sec-title">Stop guessing. Start reproducing.</h2>
+    <p class="sec-sub" style="margin-left:auto;margin-right:auto">Clone the repo, plug in a device, run one command.</p>
+    <a class="btn btn-acc" href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">Get nimo on GitHub</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span><b style="color:var(--txt)">nimo</b> · by datum-router</span>
+    <span><a href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">GitHub</a></span>
+  </div>
+</footer>
+
+<!-- orb -->
+<button id="orb" aria-label="Ask about nimo">
+  <span class="pulse"></span>
+  <svg viewBox="0 0 24 24" fill="none" stroke="#06130b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+</button>
+<div id="chat" role="dialog" aria-label="nimo assistant">
+  <div id="chat-head"><span class="on"></span><div>nimo bot<br><small>only answers questions about nimo</small></div></div>
+  <div id="chat-body"></div>
+  <div id="chat-foot">
+    <input id="chat-in" placeholder="Ask what nimo does…" autocomplete="off">
+    <button id="chat-send">Send</button>
+  </div>
+</div>
+
+<script>
+/* ---------- hero terminal animation ---------- */
+(function(){
+  const el = document.getElementById('term');
+  const script = [
+    ['p','$ python -m agent.repro --apk demo/01-notepad/app.apk --bug demo/01-notepad/bug_report.md'],
+    ['','[nimo] device: emulator-5554'],
+    ['','[nimo] llm: pollinations.ai / openai'],
+    ['p','[nimo] step 1: tap "More options"  (creating a note first)'],
+    ['p','[nimo] step 2: tap "Add Note"'],
+    ['p','[nimo] step 3: type "My first note"'],
+    ['p','[nimo] step 4: tap "Confirm"'],
+    ['p','[nimo] step 5: long_press "My first note"'],
+    ['warn','[nimo] step 6: tap "Send Note" → FATAL EXCEPTION in logcat'],
+    ['ok','[nimo] verdict: reproduced after 6 steps'],
+    ['dim','[nimo] report: out/01-notepad/repro_report.json'],
+  ];
+  let li = 0;
+  function typeLine(){
+    if(li >= script.length){ setTimeout(()=>{ el.innerHTML=''; li=0; typeLine(); }, 5000); return; }
+    const [cls, text] = script[li];
+    const div = document.createElement('div');
+    if(cls) div.className = cls;
+    el.appendChild(div);
+    let ci = 0;
+    const caret = document.createElement('span'); caret.className='caret';
+    (function tick(){
+      if(ci <= text.length){
+        div.textContent = text.slice(0, ci);
+        div.appendChild(caret);
+        ci++;
+        setTimeout(tick, text.startsWith('$') ? 34 : 10);
+      } else {
+        caret.remove();
+        li++;
+        setTimeout(typeLine, 420);
+      }
+    })();
+  }
+  typeLine();
+})();
+
+/* ---------- orb chatbot: answers ONLY about nimo ---------- */
+(function(){
+  const orb = document.getElementById('orb');
+  const chat = document.getElementById('chat');
+  const body = document.getElementById('chat-body');
+  const input = document.getElementById('chat-in');
+  const send = document.getElementById('chat-send');
+
+  const FALLBACK = "I only answer questions about nimo — try asking what it does, how it works, or what the demos are.";
+
+  const KB = [
+    {k:['what is nimo','what does nimo do','about nimo','who is nimo','explain nimo'],
+     a:"nimo is an AI agent that reproduces Android bug reports. You give it an APK and a plain-text bug report; it drives the app on a real device and returns a verdict — reproduced or not — with steps, screenshots, and the crash log."},
+    {k:['how does it work','how it works','how do','process','steps'],
+     a:"Three steps: 1) you drop in the APK and bug report, 2) the agent installs the app and taps/types/swipes through the report like a QA engineer, 3) you get a verdict with the trace, screenshots, and logcat. Crash verdicts require a real FATAL EXCEPTION — it can't hallucinate a repro."},
+    {k:['price','pricing','cost','free','paid','money'],
+     a:"nimo is early and the demo is free and open source. The default AI backend (Pollinations.ai) needs no API key or signup. Paid hosted plans are on the roadmap."},
+    {k:['demo','example','try'],
+     a:"There are 5 tiny demos: Notepad (share-note crash), A Time Tracker (restore crash), AsciiCam (rotate-then-delete crash), Comic Viewer (crash without Google Play), and KISS Launcher (a non-crash UI bug). Each reproduces in about a minute on an emulator."},
+    {k:['llm','ai model','pollinations','gpt','gemini','model'],
+     a:"nimo defaults to Pollinations.ai — free, anonymous, OpenAI-compatible. You can point it at any OpenAI-compatible endpoint (Gemini, OpenAI, Groq…) with three env vars: NIMO_BASE_URL, NIMO_API_KEY, NIMO_MODEL."},
+    {k:['android','ios','iphone','platform','mobile'],
+     a:"Android only for now — the agent drives apps over adb on real devices or emulators. iOS support is on the roadmap."},
+    {k:['sdk','integrat','install'],
+     a:"No SDK and no instrumentation. nimo works from the outside: it installs your APK and drives the UI like a user would. You only need Python 3.10+, adb, and a connected device."},
+    {k:['github','repo','source','code','open source'],
+     a:"Yes — nimo is open source at github.com/datum-router/nimo. Clone it, plug in a device, and run one command to reproduce a demo bug."},
+    {k:['who','built','company','team','datum'],
+     a:"nimo is built by datum-router. It's early days — the agent, the five demos, and this page are v0.1."},
+    {k:['contact','support','help','email','talk'],
+     a:"For now, open an issue on the GitHub repo — github.com/datum-router/nimo. That's the fastest way to reach the team."},
+    {k:['verdict','reproduced','trust','accurate'],
+     a:"Every run ends in a verdict: reproduced or not_reproduced. For crash bugs, 'reproduced' requires a genuine FATAL EXCEPTION caught in logcat — the agent can't fake it."},
+    {k:['hello','hi','hey','yo'],
+     a:"Hey! Ask me anything about nimo — what it does, how it works, or what the demos cover."},
+  ];
+
+  function addMsg(text, who){
+    const d = document.createElement('div');
+    d.className = 'msg ' + who;
+    d.textContent = text;
+    body.appendChild(d);
+    body.scrollTop = body.scrollHeight;
+  }
+  function answer(q){
+    const n = ' ' + q.toLowerCase() + ' ';
+    for(const item of KB){
+      if(item.k.some(k => n.includes(k))) return item.a;
+    }
+    return FALLBACK;
+  }
+  function submit(){
+    const q = input.value.trim();
+    if(!q) return;
+    addMsg(q, 'user');
+    input.value = '';
+    setTimeout(()=> addMsg(answer(q), 'bot'), 350);
+  }
+  orb.addEventListener('click', ()=>{
+    chat.classList.toggle('open');
+    if(chat.classList.contains('open') && !body.children.length){
+      addMsg("Hi, I'm the nimo bot. I only answer questions about nimo — what it does, how it works, the demos, that sort of thing. What's up?", 'bot');
+    }
+  });
+  send.addEventListener('click', submit);
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+})();
+</script>
+</body>
+</html>
