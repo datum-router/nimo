@@ -16,17 +16,17 @@ on:
   workflow_dispatch:
     inputs:
       android_version:
-        description: "Android version (redroid image)"
+        description: "Android version (redroid image) — auto picks from the APK"
         type: choice
-        default: "13.0.0"
+        default: "auto"
         options:
-          ["16.0.0", "15.0.0", "14.0.0", "13.0.0", "12.0.0",
+          ["auto", "16.0.0", "15.0.0", "14.0.0", "13.0.0", "12.0.0",
            "11.0.0", "10.0.0", "9.0.0", "8.1.0"]
       arch:
-        description: "CPU architecture"
+        description: "CPU architecture — auto picks from the APK's native libs"
         type: choice
-        default: "amd64"
-        options: ["amd64", "arm64"]
+        default: "auto"
+        options: ["auto", "amd64", "arm64"]
       mode:
         description: "Test mode"
         type: choice
@@ -56,17 +56,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate inputs
-        run: |
-          if [ "${{ inputs.arch }}" = "arm64" ]; then
-            echo "::error::arm64 needs a self-hosted ARM runner with binder — GitHub-hosted ARM runners lack the kernel module. Pick amd64."
-            exit 1
-          fi
-          if [ "${{ inputs.mode }}" = "repro" ] && [ -z "${{ inputs.bug_report }}" ]; then
-            echo "::error::repro mode needs a bug report."
-            exit 1
-          fi
-
       - name: Install adb + python deps
         run: |
           sudo apt-get update -qq
@@ -89,6 +78,49 @@ jobs:
         run: |
           python3 -m agent.preflight app.apk
 
+      # Customer leaves version/arch on "auto" (the default): derive both
+      # from the APK itself. A pinned version that the APK cannot install
+      # on fails fast here instead of dying 10 minutes into the boot.
+      - name: Resolve environment
+        id: env
+        env:
+          WANT_VERSION: ${{ inputs.android_version }}
+          WANT_ARCH: ${{ inputs.arch }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import os, sys
+          from agent.preflight import recommend_env, VERSION_API
+          rec = recommend_env("app.apk")
+          ver = os.environ["WANT_VERSION"]
+          arch = os.environ["WANT_ARCH"]
+          if ver == "auto":
+              ver = rec["android_version"]
+          elif VERSION_API[ver] > rec["max_api"]:
+              print(f"::error::Android {ver} (API {VERSION_API[ver]}) cannot "
+                    f"install this APK (max API {rec['max_api']}). "
+                    "Use android_version=auto.")
+              sys.exit(1)
+          if arch == "auto":
+              arch = rec["arch"]
+          print(f"android_version={ver}")
+          print(f"api_level={VERSION_API[ver]}")
+          print(f"arch={arch}")
+          for i, why in enumerate(rec["reasons"]):
+              print(f"reason{i}={why}")
+          EOF
+          grep -E "^(android_version|api_level|arch|reason)" "$GITHUB_OUTPUT" | tail -8
+
+      - name: Validate inputs
+        run: |
+          if [ "${{ steps.env.outputs.arch }}" = "arm64" ]; then
+            echo "::error::this APK ships ARM-only native libraries — amd64 runners cannot execute them. arm64 needs a self-hosted ARM runner with binder; GitHub-hosted ARM runners lack the kernel module."
+            exit 1
+          fi
+          if [ "${{ inputs.mode }}" = "repro" ] && [ -z "${{ inputs.bug_report }}" ]; then
+            echo "::error::repro mode needs a bug report."
+            exit 1
+          fi
+
       - name: Probe for binder (redroid requirement)
         id: binder
         run: |
@@ -106,7 +138,7 @@ jobs:
           docker run -d --rm --privileged \
             --name nimo-redroid \
             -p 5555:5555 \
-            redroid/redroid:${{ inputs.android_version }}-latest \
+            redroid/redroid:${{ steps.env.outputs.android_version }}-latest \
             androidboot.redroid_width=1080 \
             androidboot.redroid_height=1920 \
             androidboot.redroid_dpi=420
@@ -128,7 +160,7 @@ jobs:
         if: steps.binder.outputs.available != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: ${{ inputs.android_version == '16.0.0' && 35 || inputs.android_version == '15.0.0' && 35 || inputs.android_version == '14.0.0' && 34 || inputs.android_version == '13.0.0' && 33 || inputs.android_version == '12.0.0' && 32 || inputs.android_version == '11.0.0' && 30 || inputs.android_version == '10.0.0' && 29 || inputs.android_version == '9.0.0' && 28 || 27 }}
+          api-level: ${{ steps.env.outputs.api_level }}
           arch: x86_64
           script: |
             echo "RUNTIME=emulator" >> "$GITHUB_ENV"
@@ -202,16 +234,16 @@ jobs:
             python3 -m agent.summarize \
               --report out/pipeline_report.json \
               --out "summary.json" \
-              --android-version "${{ inputs.android_version }}" \
-              --arch "${{ inputs.arch }}" \
+              --android-version "${{ steps.env.outputs.android_version }}" \
+              --arch "${{ steps.env.outputs.arch }}" \
               --runtime "$RUNTIME"
           else
             python3 - <<'EOF'
           import json
           json.dump({"verdict": "failed",
                      "customer_note": "The test run did not produce a report. Check the Actions log.",
-                     "device": {"android_version": "${{ inputs.android_version }}",
-                                "arch": "${{ inputs.arch }}", "runtime": "unknown"},
+                     "device": {"android_version": "${{ steps.env.outputs.android_version }}",
+                                "arch": "${{ steps.env.outputs.arch }}", "runtime": "unknown"},
                      "bugs": [], "unreachable": [], "coverage_pct": 0,
                      "visited": 0, "total": 0}, open("summary.json", "w"))
           EOF
