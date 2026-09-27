@@ -31,6 +31,27 @@ python -m agent.repro --discover \
 nimo explores the app on its own and reports every crash it finds, each
 with its action trail, screenshot, and log.
 
+## The pipeline (recommended)
+
+Free-roam discover is a wander; the pipeline is systematic:
+
+```bash
+cp config/auth.yaml.example auth.yaml   # add test creds / google account
+python -m agent.pipeline --apk demo/01-notepad/app.apk \
+    --auth auth.yaml \
+    --out out/pipeline/
+```
+
+What happens: manifest parsed → all 7 activities mapped → each launched
+directly → every button/field exercised → login walls handled (your creds,
+auto sign-up, or Google Sign-In via a pre-authed emulator snapshot —
+`docs/GOOGLE_LOGIN.md`) → crashes deduped by stack fingerprint →
+`pipeline_report.json` with coverage % and unreachable screens explained.
+
+Add `--bug demo/01-notepad/bug_report.md` to run targeted repro first,
+then the full sweep. Add `--coverage-apk app-jacoco.apk` for real
+JaCoCo code coverage from the VALOR-Droid toolchain (`docs/COVERAGE.md`).
+
 ## Run all five demos
 ```bash
 for d in 01-notepad 02-atimetracker 03-asciicam 04-comicviewer 05-kiss; do
