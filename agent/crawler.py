@@ -134,6 +134,7 @@ class Crawler:
         self.launch_failures: dict[str, str] = {}
         self.redirects: dict[str, str] = {}      # requested -> landed activity
         self.login_redirects: set[str] = set()    # requested, landed on login
+        self.permission_dialogs = 0  # system permission dialogs auto-dismissed
 
     # ---- helpers -----------------------------------------------------
     def _log(self, msg: str) -> None:
@@ -246,6 +247,7 @@ class Crawler:
             "activities_visited": len(self.result.visited_activities),
             "screens_visited": self.result.screens_visited,
             "login_redirects": len(self.login_redirects),
+            "permission_dialogs_dismissed": self.permission_dialogs,
             "note": "redirected launches are NOT counted as visited",
         })
         self.result.bugs = triage.dedupe(self.raw_crashes)
@@ -274,6 +276,21 @@ class Crawler:
             self._log(f"direct launch failed for {activity}: {exc}")
             return
         device.wait(2.0)
+        if device.is_permission_dialog():
+            # the launch triggered a runtime permission request — grant and
+            # dismiss it, then re-launch; otherwise the dialog sits modal and
+            # every later launch no-ops behind it (0% coverage)
+            self._log("permission dialog blocking launch — dismissing")
+            device.dismiss_permission_dialog(pkg, self.meta.permissions)
+            self.permission_dialogs += 1
+            device.wait(1.0)
+            try:
+                device.start_activity(comp)
+            except device.DeviceError as exc:
+                self.launch_failures[activity] = str(exc)[:120]
+                self._log(f"direct launch failed for {activity}: {exc}")
+                return
+            device.wait(2.0)
         if self._check_crash(activity):
             device.start_activity(comp)
             device.wait(2.0)
