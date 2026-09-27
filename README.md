@@ -35,6 +35,26 @@ python -m agent.repro --discover --apk demo/01-notepad/app.apk \
 
 → `out/*/repro_report.json` + step screenshots.
 
+## Full pipeline: test every corner
+
+```bash
+# systematic discovery: static map -> login handling -> BFS crawl -> coverage
+python -m agent.pipeline --apk app.apk --auth config/auth.yaml --out out/full/
+
+# bug report + full sweep in one run
+python -m agent.pipeline --apk app.apk --bug report.md --auth config/auth.yaml --out out/full/
+
+# with JaCoCo code coverage (instrumented build from the VALOR-Droid toolchain)
+python -m agent.pipeline --apk app.apk --coverage-apk app-jacoco.apk --out out/full/
+```
+
+The pipeline parses the manifest for every activity and deep link, launches
+each directly, crawls every element, gets past login walls (credentials,
+auto sign-up, Google Sign-In — see `docs/GOOGLE_LOGIN.md`), dedupes crashes
+by stack-trace fingerprint, and reports honest coverage:
+`visited 21/23 activities`, unreachable screens listed with reasons.
+Details: `docs/PIPELINE.md`.
+
 ## The five demos
 
 | Demo | App | Bug shape |
