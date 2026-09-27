@@ -20,6 +20,17 @@ python -m agent.repro --apk demo/01-notepad/app.apk \
 You get `out/01-notepad/repro_report.json` (verdict, steps, crash log) plus
 per-step screenshots in `out/01-notepad/screenshots/`.
 
+## Discover bugs with no bug report
+```bash
+python -m agent.repro --discover \
+    --apk demo/01-notepad/app.apk \
+    --package bander.notepad \
+    --out out/discovery/
+```
+
+nimo explores the app on its own and reports every crash it finds, each
+with its action trail, screenshot, and log.
+
 ## Run all five demos
 ```bash
 for d in 01-notepad 02-atimetracker 03-asciicam 04-comicviewer 05-kiss; do
