@@ -31,7 +31,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from . import apkmeta, auth, blockers, device, tarpit, triage
+from . import actions, apkmeta, auth, blockers, device, tarpit, triage
 from .llm import LLMClient
 
 FIELD_VALUES_PROMPT = """You are helping an automated app-testing agent. \
@@ -141,10 +141,21 @@ class Crawler:
         self.login_redirects: set[str] = set()    # requested, landed on login
         self.permission_dialogs = 0  # system permission dialogs auto-dismissed
         self.tarpit = tarpit.TarpitDetector()  # stall detection (Jev pattern)
+        self.feed = actions.ActionFeed(out_dir)  # live action feed -> actions.jsonl
+        self.screen_order: list[str] = []        # activities, first-visited order
+        self.screen_actions: dict[str, int] = {}  # activity -> action count
 
     # ---- helpers -----------------------------------------------------
     def _log(self, msg: str) -> None:
         print(f"[crawl] {msg}", flush=True)
+
+    def _act(self, kind: str, x: int | None = None, y: int | None = None,
+             label: str = "", activity: str | None = None) -> None:
+        """Record one structured action for the live frontend feed."""
+        self.feed.record(kind, x, y, label, activity)
+        if activity:
+            self.screen_actions[activity] = \
+                self.screen_actions.get(activity, 0) + 1
 
     def _shot(self) -> str:
         self.shot_n += 1
@@ -160,6 +171,7 @@ class Crawler:
         if not crash:
             return False
         self._log(f"CRASH in {activity}")
+        self._act("crash", label="crash", activity=activity)
         self.raw_crashes.append({
             "package": self.meta.package,
             "activity": activity,
@@ -310,6 +322,8 @@ class Crawler:
             self.launch_failures[activity] = str(exc)[:500]
             self._log(f"direct launch failed for {activity}: {exc}")
             return
+        self._act("launch", label=actions.ActionFeed.short_activity(activity),
+                  activity=activity)
         device.wait(2.0)
         if device.is_permission_dialog():
             # the launch triggered a runtime permission request — grant and
@@ -325,6 +339,9 @@ class Crawler:
                 self.launch_failures[activity] = str(exc)[:500]
                 self._log(f"direct launch failed for {activity}: {exc}")
                 return
+            self._act("launch",
+                      label=actions.ActionFeed.short_activity(activity),
+                      activity=activity)
             device.wait(2.0)
         if self._check_crash(activity):
             device.start_activity(comp)
@@ -356,6 +373,7 @@ class Crawler:
             return
         if activity not in self.result.visited_activities:
             self.result.visited_activities.append(activity)
+            self.screen_order.append(activity)
         self._log(f"visiting {activity} "
                   f"({len(self.result.visited_activities)}/{self.result.total_activities})")
 
@@ -395,9 +413,10 @@ class Crawler:
         reason = str(esc.get("reason") or "")[:200]
         self._log(f"tarpit escape: {action} — {reason}")
         if action != "abstain":
-            self._execute_escape(action, esc, elements)
+            self._execute_escape(action, esc, elements, activity)
         else:
             device.press_back()
+            self._act("back", label="back (tarpit)", activity=activity)
             device.wait(1.0)
             device.reset_foreground(self.meta.package)
         self.tarpit.events.append(
@@ -410,7 +429,7 @@ class Crawler:
         })
 
     def _execute_escape(self, action: str, esc: dict,
-                        elements: list[dict]) -> None:
+                        elements: list[dict], activity: str | None = None) -> None:
         """Carry out the LLM's chosen escape action. Best-effort: a miss
         just logs and the deterministic crawl continues."""
         pkg = self.meta.package
@@ -421,13 +440,17 @@ class Crawler:
                     if target and target in (e.get("label") or "").lower() \
                             and e.get("clickable"):
                         device.tap(e["x"], e["y"])
+                        self._act("tap", e["x"], e["y"], e["label"] or "tap",
+                                  activity)
                         self.trail.append(f"tarpit tap {e['label']}")
                         break
             elif action == "back":
                 device.press_back()
+                self._act("back", label="back", activity=activity)
             elif action == "swipe_up":
                 w, h = device.screen_size()
                 device.swipe(w // 2, int(h * 0.8), w // 2, int(h * 0.2))
+                self._act("swipe", w // 2, int(h * 0.5), "swipe up", activity)
             elif action == "type":
                 target = str(esc.get("target") or "").lower()
                 text = str(esc.get("text") or "")
@@ -438,6 +461,7 @@ class Crawler:
                         device.tap(e["x"], e["y"])
                         device.wait(0.5)
                         device.input_text(text)
+                        self._act("type", e["x"], e["y"], text[:20], activity)
                         self.trail.append(f"tarpit type {text[:20]!r}")
                         break
             elif action == "relaunch":
@@ -446,6 +470,7 @@ class Crawler:
                 if self.meta.main_activity:
                     device.start_activity(
                         apkmeta.component(pkg, self.meta.main_activity))
+                    self._act("launch", label="relaunch", activity=activity)
             device.wait(1.5)
             self.result.actions_taken += 1
         except device.DeviceError as exc:
@@ -472,8 +497,11 @@ class Crawler:
             val = values.get(e["label"] or "", "nimo test")
             for text in (val, EDGE_INPUTS[len(self.touched_elements) % len(EDGE_INPUTS)]):
                 device.tap(e["x"], e["y"])
+                self._act("tap", e["x"], e["y"], e["label"] or "field",
+                          activity)
                 device.wait(0.6)
                 device.input_text(text)
+                self._act("type", e["x"], e["y"], text[:20], activity)
                 device.wait(0.6)
                 self.result.actions_taken += 1
                 self.trail.append(f"type {text[:20]!r} into {e['label']}")
@@ -486,6 +514,8 @@ class Crawler:
                             for k in ("save", "send", "submit", "ok", "done",
                                       "search", "go")):
                         device.tap(btn["x"], btn["y"])
+                        self._act("tap", btn["x"], btn["y"],
+                                  btn["label"] or "button", activity)
                         device.wait(1.5)
                         self.result.actions_taken += 1
                         self.trail.append(f"tap {btn['label']}")
@@ -523,6 +553,7 @@ class Crawler:
                    ("log out", "sign out", "delete account")):
                 continue
             device.tap(e["x"], e["y"])
+            self._act("tap", e["x"], e["y"], label, activity)
             device.wait(1.5)
             self.result.actions_taken += 1
             self.trail.append(f"tap {label}")
@@ -542,6 +573,7 @@ class Crawler:
                     self._explore_screen(new_act, new_els)
                     # go back to the parent screen to continue the sweep
                     device.press_back()
+                    self._act("back", label="back", activity=new_act)
                     device.wait(1.0)
             elif new_act:
                 # tapped out of the app (browser, settings...) — come back
@@ -558,6 +590,7 @@ class Crawler:
         self.result.deep_links_fired += 1
         self.trail.append(f"deep link {link}")
         act = device.current_activity()
+        self._act("deep_link", label=link[:40], activity=act)
         if act and act.split("/")[0] == self.meta.package:
             self._enqueue(act)
             if self._check_crash(act):

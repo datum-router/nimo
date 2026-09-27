@@ -79,6 +79,39 @@ li.s-bad .dot{background:var(--bad)}
 code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:13px}
 pre{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:12.5px;overflow-x:auto;color:var(--mut);white-space:pre-wrap}
 footer{border-top:1px solid var(--line);margin-top:50px;padding:26px 0;color:var(--mut);font-size:13px}
+/* ---- fun live view ---- */
+.dots i{display:inline-block;width:5px;height:5px;border-radius:99px;background:var(--acc);margin-left:3px;animation:blink 1.2s infinite}
+.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+@keyframes blink{50%{opacity:.15}}
+.livegrid{display:grid;grid-template-columns:290px 1fr;gap:18px;margin:14px 0}
+@media(max-width:640px){.livegrid{grid-template-columns:1fr}}
+.phone{background:#05070d;border:1px solid var(--line);border-radius:26px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.screen{position:relative;border-radius:18px;overflow:hidden;background:#0b0e17;min-height:420px}
+.screen img{width:100%;display:block;position:relative;z-index:1}
+#ripples{position:absolute;inset:0;z-index:2;pointer-events:none}
+.ripple{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:99px;border:2px solid var(--acc2);animation:rip 1.4s ease-out forwards}
+.ripple::after{content:"";position:absolute;inset:4px;border-radius:99px;background:var(--acc2)}
+.ripple.bad{border-color:var(--bad)}.ripple.bad::after{background:var(--bad)}
+@keyframes rip{from{transform:scale(.4);opacity:1}to{transform:scale(2.6);opacity:0}}
+#noshot{position:absolute;inset:0;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;color:var(--mut);font-size:13px;text-align:center;padding:20px}
+.phonepulse{width:74px;height:74px;border-radius:22px;border:2px solid var(--acc);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.12);opacity:.5}}
+.maplabel{font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:var(--mut);margin:12px 0 8px}
+.maplabel:first-child{margin-top:0}
+#appmap{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sbox{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;display:flex;flex-direction:column;min-width:96px;position:relative;animation:pop .3s ease-out}
+@keyframes pop{from{transform:scale(.85);opacity:0}}
+.sbox b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.sbox span{font-size:11.5px;color:var(--mut)}
+.sbox:not(:first-child){margin-left:14px}
+.sbox:not(:first-child)::before{content:"→";position:absolute;left:-16px;top:50%;transform:translateY(-50%);color:var(--acc);font-weight:800}
+.sbox.cur{border-color:var(--acc2);box-shadow:0 0 0 1px var(--acc2),0 0 18px rgba(34,211,165,.25);animation:pulse 1.6s ease-in-out infinite}
+#actionfeed{display:flex;flex-wrap:wrap;gap:6px;max-height:132px;overflow:hidden}
+.achip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:12px;color:var(--txt);animation:pop .25s ease-out;max-width:210px}
+.achip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mut)}
+details.boring{margin-top:14px}
+details.boring summary{font-size:13px;color:var(--mut);cursor:pointer}
+details.boring summary:hover{color:var(--txt)}
 </style>
 </head>
 <body>
@@ -189,14 +222,29 @@ footer{border-top:1px solid var(--line);margin-top:50px;padding:26px 0;color:var
   <!-- ============ TRACKER ============ -->
   <div id="tracker">
     <div class="card">
-      <h3>Live</h3>
+      <h3>🤖 nimo is driving <span class="dots"><i></i><i></i><i></i></span></h3>
       <span class="pill run" id="t-pill">starting…</span>
       <p class="hint" id="t-meta"></p>
+      <p class="hint" id="t-phase" style="color:var(--txt);font-size:14.5px">waking up the cloud phone…</p>
+      <div class="livegrid">
+        <div class="phone"><div class="screen">
+          <img id="shot" alt="live device screen" style="display:none">
+          <div id="ripples"></div>
+          <div id="noshot"><div class="phonepulse"></div><p>the screen appears here<br>when the device boots</p></div>
+        </div></div>
+        <div>
+          <div class="maplabel">🗺️ app map — screens explored</div>
+          <div id="appmap"><span class="hint">no screens yet — the sweep knocks first</span></div>
+          <div class="maplabel">⚡ live actions</div>
+          <div id="actionfeed"></div>
+        </div>
+      </div>
       <div class="progress"><i id="t-bar"></i></div>
-      <p class="hint" id="t-phase"></p>
-      <ul class="steplist" id="t-steps"></ul>
-      <img id="shot" alt="latest device screenshot" style="display:none">
-      <p class="hint">Steps update live from GitHub Actions; the screenshot refreshes about once a minute.</p>
+      <p class="hint" id="t-count"></p>
+      <details class="boring">
+        <summary>boring details · workflow steps</summary>
+        <ul class="steplist" id="t-steps"></ul>
+      </details>
     </div>
   </div>
 
@@ -384,7 +432,7 @@ function startTracking(dispatchedAt, meta){
   const since = new Date(new Date(dispatchedAt).getTime() - 60000).toISOString();
   const findRun = async () => {
     try {
-      const r = await fetch(`${API}/runs?event=workflow_dispatch&per_page=10`);
+      const r = await fetch(`${API}/runs?event=workflow_dispatch&per_page=10`, { headers: authHeaders() });
       if (r.status === 403) { $("t-phase").textContent = "GitHub API rate limit hit — backing off, will retry."; return; }
       const j = await r.json();
       const run = (j.workflow_runs||[]).find(x => x.created_at >= since);
@@ -395,11 +443,79 @@ function startTracking(dispatchedAt, meta){
   setTimeout(() => { if (!runId) { clearInterval(t1); $("t-phase").textContent = "No run appeared after 10 minutes — check the Actions tab."; } }, 600000);
 }
 
+function authHeaders(){
+  const h = {};
+  const tok = ($("f-token") && $("f-token").value || "").trim();
+  if (tok) h["Authorization"] = "Bearer " + tok;
+  return h;
+}
+
+const ICONS = {tap:"👆", type:"⌨️", back:"↩️", swipe:"🌀", launch:"🚀", deep_link:"🔗", crash:"💥"};
+let lastActionT = 0;
+
+function funPhase(ph){
+  if (!ph) return "waking up the cloud phone…";
+  const p = ph.toLowerCase();
+  if (p.includes("booting")) return "warming up the cloud phone…";
+  if (p.includes("starting")) return "nimo stretches its fingers…";
+  if (p.includes("analyzing")) return "reading the APK's map…";
+  if (p.includes("intent sweep") || p.includes("sweep")) return "knocking on every door in the app…";
+  if (p.includes("crawl") || p.includes("path b")) return "tapping around like a curious human…";
+  if (p.includes("repro")) return "replaying the reported bug…";
+  return ph + "…";
+}
+function shortAct(a){ return (a||"").split("/").pop().split(".").pop(); }
+
+function renderAppMap(p){
+  const m = $("appmap"); m.innerHTML = "";
+  const screens = p.screens || [];
+  if (!screens.length) { m.innerHTML = '<span class="hint">no screens yet — the sweep knocks first</span>'; return; }
+  const cur = p.current_activity || "";
+  screens.forEach(s => {
+    const d = document.createElement("div");
+    d.className = "sbox" + (s.a === cur ? " cur" : "");
+    d.title = s.a || "";
+    d.innerHTML = `<b>${shortAct(s.a)}</b><span>${s.n||0} actions</span>`;
+    m.appendChild(d);
+  });
+}
+
+function addRipple(fx, fy, kind){
+  const r = document.createElement("div");
+  r.className = "ripple" + (kind === "crash" ? " bad" : "");
+  r.style.left = (fx*100) + "%";
+  r.style.top = (fy*100) + "%";
+  const box = $("ripples");
+  box.appendChild(r);
+  while (box.children.length > 14) box.firstChild.remove();
+  setTimeout(() => r.remove(), 1600);
+}
+
+function renderActions(p){
+  const acts = p.actions || [];
+  const f = $("actionfeed"); f.innerHTML = "";
+  acts.slice().reverse().slice(0, 18).forEach(a => {
+    const c = document.createElement("span");
+    c.className = "achip";
+    c.title = shortAct(a.activity) + " · " + new Date((a.t||0)*1000).toLocaleTimeString();
+    const lbl = (a.label || a.kind || "").slice(0, 26);
+    c.innerHTML = `${ICONS[a.kind]||"•"}<span>${lbl}</span>`;
+    f.appendChild(c);
+  });
+  let newest = 0;
+  acts.forEach(a => {
+    if ((a.t||0) > lastActionT && a.fx != null && a.fy != null)
+      addRipple(a.fx, a.fy, a.kind);
+    if (a.t) newest = Math.max(newest, a.t);
+  });
+  if (newest) lastActionT = Math.max(lastActionT, newest);
+}
+
 function trackRun(){
-  $("t-phase").textContent = "Run found — waiting for the device to boot…";
+  $("t-phase").textContent = "Run found — waking up the cloud phone…";
   const jobs = async () => {
     try {
-      const r = await fetch(`https://api.github.com/repos/${REPO}/actions/runs/${runId}/jobs`);
+      const r = await fetch(`https://api.github.com/repos/${REPO}/actions/runs/${runId}/jobs`, { headers: authHeaders() });
       if (r.status === 403) return; // rate limited, try next tick
       const j = await r.json();
       const job = (j.jobs||[])[0];
@@ -412,18 +528,22 @@ function trackRun(){
     if (!runId) return;
     try {
       const r = await fetch(`${RAW}/run-${runId}/progress.json?t=${Date.now()}`);
-      if (!r.ok) return;
-      const p = await r.json();
-      const pct = p.total ? Math.round(100*p.visited/p.total) : 0;
-      $("t-bar").style.width = pct + "%";
-      $("t-phase").textContent = `${p.phase||""} — ${p.visited||0}/${p.total||0} screens`;
+      if (r.ok) {
+        const p = await r.json();
+        const pct = p.total ? Math.round(100*p.visited/p.total) : 0;
+        $("t-bar").style.width = pct + "%";
+        $("t-phase").textContent = funPhase(p.phase);
+        $("t-count").textContent = (p.visited||0) + "/" + (p.total||0) + " screens explored";
+        renderAppMap(p);
+        renderActions(p);
+      }
     } catch(e) {}
     const img = $("shot");
+    img.onload = () => { img.style.display = "block"; $("noshot").style.display = "none"; };
+    img.onerror = () => { img.style.display = "none"; $("noshot").style.display = "flex"; };
     img.src = `${RAW}/run-${runId}/latest.png?t=${Date.now()}`;
-    img.style.display = "block";
-    img.onerror = () => img.style.display = "none";
   };
-  pollTimers.push(setInterval(jobs, 60000), setInterval(prog, 45000));
+  pollTimers.push(setInterval(jobs, 60000), setInterval(prog, 20000));
   jobs(); prog();
 }
 

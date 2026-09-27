@@ -154,6 +154,17 @@ jobs:
           git config user.email "nimo-live@users.noreply.github.com"
           mkdir -p "run-$RUN_ID"
           echo "$RUN_ID" > /tmp/run_id
+          # publish an immediate heartbeat so the web UI shows life within
+          # a minute of dispatch — long before the emulator finishes booting
+          python3 -c "
+          import json, datetime
+          json.dump({'status':'running','phase':'booting device','visited':0,
+                     'total':0,'current_activity':'','screens':[],'actions':[],
+                     'updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat()},
+                    open('run-$RUN_ID/progress.json','w'))"
+          git add "run-$RUN_ID"
+          git commit -qm "run $RUN_ID starting"
+          git push -q origin "$LIVE_BRANCH" || true
 
       - name: Probe for binder (redroid requirement)
         id: binder

@@ -28,7 +28,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from . import apkmeta, auth, autofill, blockers, coverage, deeplinks, device, login_prologue, preflight
+from . import actions, apkmeta, auth, autofill, blockers, coverage, deeplinks, device, login_prologue, preflight
 from .crawler import CrawlBudget, explore
 from .llm import LLMClient
 from .repro import reproduce
@@ -143,6 +143,13 @@ def main() -> None:
         print(f"[nimo] sweep done: {len(sweep['reached'])} activities "
               f"reached via intents, "
               f"{len(sweep['unreachable'])} labeled unreachable")
+        # seed the live action feed with what the sweep reached, so the
+        # frontend's app map shows those screens from the start
+        sweep_feed = actions.ActionFeed(crawl_dir)
+        for act in sweep["reached"]:
+            sweep_feed.record("launch",
+                              label=actions.ActionFeed.short_activity(act),
+                              activity=act)
 
         # rung 2b of the login ladder: nimo's own AutofillService on-device.
         # OS-level credential fill for any app's login form; the crawler's
