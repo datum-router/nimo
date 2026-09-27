@@ -106,7 +106,15 @@ def suggest_field_values(elements: list[dict], meta: apkmeta.ApkMeta,
 
 class Crawler:
     def __init__(self, meta: apkmeta.ApkMeta, cfg: auth.AuthConfig,
-                 llm: LLMClient, out_dir: str, budget: CrawlBudget):
+                 llm: LLMClient, out_dir: str, budget: CrawlBudget,
+                 seeds: list[str] | None = None,
+                 sweep_labels: dict[str, dict] | None = None):
+        self.meta = meta
+        self.cfg = cfg
+        self.llm = llm
+        self.budget = budget
+        self.seeds = seeds or []          # activities the intent sweep reached
+        self.sweep_labels = sweep_labels or {}  # activity -> blocker label
         self.meta = meta
         self.cfg = cfg
         self.llm = llm
@@ -186,6 +194,12 @@ class Crawler:
         if self.meta.main_activity:
             self.queue.append(self.meta.main_activity)
             self.queued.add(self.meta.main_activity)
+        # seed with activities the intent sweep already reached — they get
+        # full in-screen exploration here, not just a launch
+        for s in self.seeds:
+            if s not in self.queued:
+                self.queued.add(s)
+                self.queue.append(s)
         # every other activity is reachable via direct launch too
         for a in self.meta.activities:
             if a.name not in self.queued:
@@ -218,6 +232,9 @@ class Crawler:
                         f"direct launch redirected to {self.redirects[a.name]}")
                 elif not a.exported:
                     entry = blockers.label(a.name, "not-exported")
+                elif a.name in self.sweep_labels:
+                    # intent sweep already proved the precise failure
+                    entry = self.sweep_labels[a.name]
                 elif budget_out:
                     entry = blockers.label(a.name, "budget-exhausted")
                 else:
@@ -411,6 +428,9 @@ class Crawler:
 
 
 def explore(meta: apkmeta.ApkMeta, cfg: auth.AuthConfig, llm: LLMClient,
-            out_dir: str, budget: CrawlBudget | None = None) -> CrawlResult:
-    crawler = Crawler(meta, cfg, llm, out_dir, budget or CrawlBudget())
+            out_dir: str, budget: CrawlBudget | None = None,
+            seeds: list[str] | None = None,
+            sweep_labels: dict[str, dict] | None = None) -> CrawlResult:
+    crawler = Crawler(meta, cfg, llm, out_dir, budget or CrawlBudget(),
+                      seeds=seeds, sweep_labels=sweep_labels)
     return crawler.run()
