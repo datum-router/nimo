@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 
 from . import actions, apkmeta, auth, autofill, blockers, coverage, deeplinks, device, login_prologue, preflight
 from .crawler import CrawlBudget, explore
-from .llm import LLMClient
+from ..llm import LLMClient
 from .repro import reproduce
 
 

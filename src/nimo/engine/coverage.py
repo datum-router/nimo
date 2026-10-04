@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import struct
 import subprocess
 
 from . import device
@@ -90,3 +89,46 @@ def report(ec_path: str, out_dir: str,
         info["note"] = ("no per-package conversion — missing: "
                         + ", ".join(missing) + ". Raw .ec kept for later.")
     return info
+
+
+# ── Activity coverage (VALOR screen-reach idea, no instrumentation needed) ──
+# When a JaCoCo-instrumented build is unavailable (release APK, no source),
+# we still report an HONEST coverage number: how many of the APK's declared
+# activities the crawl actually reached. This is the two-tier coverage story
+# from the merge spec — line coverage with source, screen coverage without.
+
+def _canonical(component: str, package: str) -> str:
+    """Normalise 'pkg/.Foo' and 'pkg/pkg.Foo' to a comparable form."""
+    if not component:
+        return ""
+    comp = component.split("/", 1)[-1] if "/" in component else component
+    if comp.startswith("."):
+        comp = package + comp
+    elif "." not in comp:
+        comp = package + "." + comp
+    return comp
+
+
+def activity_coverage(declared_activities: list[str],
+                      reached_components: set[str],
+                      package: str) -> dict:
+    """Fraction of declared activities whose canonical name was reached.
+
+    declared_activities : activity names from the manifest (apkmeta).
+    reached_components   : 'pkg/.Activity' strings the oracle observed as the
+                           focused activity during the crawl.
+    Returns {kind, percent, covered, total, reached, missed}.
+    """
+    declared = {_canonical(a, package) for a in declared_activities if a}
+    reached = {_canonical(c, package) for c in reached_components if c}
+    hit = declared & reached
+    total = len(declared)
+    pct = (100.0 * len(hit) / total) if total else 0.0
+    return {
+        "kind": "activity",
+        "percent": round(pct, 1),
+        "covered": len(hit),
+        "total": total,
+        "reached": sorted(hit),
+        "missed": sorted(declared - reached),
+    }

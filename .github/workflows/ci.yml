@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main, nimo-v2-fused]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install (engine is stdlib-only; dev extras for tooling)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check src tests
+      - name: Tests
+        run: pytest -q
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # No LLM key, no emulator, no extras — proves the fused engine wires up.
+      - name: Install (no extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: CLI is on PATH
+        run: nimo version
+      - name: Deviceless selftest
+        run: nimo selftest

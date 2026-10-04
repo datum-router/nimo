@@ -25,8 +25,8 @@ import os
 import time
 from datetime import datetime, timezone
 
-from . import device
-from .llm import LLMClient
+from . import device, gestures
+from ..llm import LLMClient
 from .prompts import (DISCOVER_SYSTEM_PROMPT, SYSTEM_PROMPT,
                       render_discover_step, render_step)
 
@@ -116,13 +116,16 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
         try:
             if kind == "tap":
                 xy = _find_xy(elements, action.get("label", ""))
-                if xy: device.tap(*xy)
+                if xy:
+                    device.tap(*xy)
             elif kind == "long_press":
                 xy = _find_xy(elements, action.get("label", ""))
-                if xy: device.swipe(xy[0], xy[1], xy[0], xy[1], ms=800)
+                if xy:
+                    gestures.long_press(xy[0], xy[1], ms=800)
             elif kind == "type":
                 xy = _find_xy(elements, action.get("label", ""))
-                if xy: device.tap(*xy)
+                if xy:
+                    device.tap(*xy)
                 device.wait(0.5)
                 device.input_text(action.get("text", ""))
             elif kind == "swipe_up":
