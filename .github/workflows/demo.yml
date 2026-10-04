@@ -66,13 +66,13 @@ jobs:
           arch: x86_64
           target: default
           disable-linux-hw-accel: false
+          # NOTE: this action runs the script LINE BY LINE, so a backslash
+          # continuation does not join lines -- `nimo repro \` executed on its
+          # own and died with "the following arguments are required". Keep the
+          # whole invocation on one line.
           script: |
             adb wait-for-device
-            nimo repro \
-              --apk demo/${{ matrix.demo.dir }}/app.apk \
-              --package ${{ matrix.demo.package }} \
-              --bug demo/${{ matrix.demo.dir }}/bug_report.md \
-              --out out/${{ matrix.demo.dir }}/
+            nimo repro --apk demo/${{ matrix.demo.dir }}/app.apk --package ${{ matrix.demo.package }} --bug demo/${{ matrix.demo.dir }}/bug_report.md --out out/${{ matrix.demo.dir }}/
 
       - name: Upload repro report
         if: always()

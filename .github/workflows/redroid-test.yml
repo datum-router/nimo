@@ -283,7 +283,12 @@ jobs:
           # KVM is granted above, so keep hardware acceleration on; `auto`
           # would silently disable it again on any probe hiccup.
           disable-linux-hw-accel: false
-          emulator-options: -no-snapshot-save -noaudio -no-boot-anim -camera-back none -gpu swiftshader_indirect
+          # -no-window is REQUIRED: the runner has no display, and emulator
+          # 37.x aborts at startup ("no Qt platform plugin could be
+          # initialized") if it tries to open a window. Overriding
+          # emulator-options replaces the action's defaults, so it has to be
+          # repeated here rather than inherited.
+          emulator-options: -no-window -no-snapshot-save -noaudio -no-boot-anim -camera-back none -gpu swiftshader_indirect
           # NOTE: this action executes the script line-by-line, so the whole
           # invocation must be a single line (no backslash continuations).
           script: adb -s emulator-5554 wait-for-device && bash "$GITHUB_WORKSPACE/scripts/run_pipeline.sh" emulator emulator-5554 "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ steps.bug.outputs.has_bug }}"
