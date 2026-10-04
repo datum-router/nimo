@@ -128,7 +128,10 @@ def test_default_backend_is_pollinations_and_needs_no_key():
     b = get_backend()
     assert "pollinations" in b.base_url, (
         "the free default must stay Pollinations — no signup, no key")
-    assert b.api_key == "not-needed"
+    assert b.api_key == "", (
+        "an unset key must be empty, not a placeholder: sending "
+        "`Bearer not-needed` makes Pollinations treat us as an authenticated "
+        "caller and refuse the request")
 
 
 def test_backend_honours_explicit_overrides():

@@ -146,3 +146,10 @@ EOF
 git add "run-$RUN_ID"
 git commit -q --amend --no-edit || git commit -qm "run $RUN_ID done"
 git push -q -f origin "$LIVE_BRANCH" || true
+
+# Propagate the pipeline's real exit code. summary.json, the screenshots and
+# the live branch have all been published above, so failing here loses
+# nothing — but it stops a run whose pipeline died from reporting a green
+# check. A product whose claim is "it cannot lie about a bug" must not lie
+# about whether it ran at all.
+exit "$STATUS"

@@ -10,6 +10,8 @@ CI smoke tests and offline demos (the VALOR deterministic-fallback path).
 """
 from __future__ import annotations
 
+import os
+
 from .client import LLMClient
 
 __all__ = ["LLMClient", "get_backend", "NullBackend"]
@@ -41,7 +43,13 @@ def get_backend(name: str | None = None, **kwargs) -> "LLMClient | NullBackend":
       "null"                           -> deterministic NullBackend
     Any other name is treated as an OpenAI-compatible endpoint selected via
     the standard NIMO_BASE_URL / NIMO_MODEL env vars.
+
+    With no explicit name, NIMO_BACKEND is consulted, so a device-only run
+    needs no code change: `NIMO_BACKEND=null nimo repro ...` drives the whole
+    device / oracle / report path with no network and no key.
     """
+    if name is None:
+        name = os.environ.get("NIMO_BACKEND") or None
     if name == "null":
         return NullBackend()
     return LLMClient(**kwargs)

@@ -26,7 +26,7 @@ import time
 from datetime import datetime, timezone
 
 from . import device, gestures
-from ..llm import LLMClient
+from ..llm import get_backend
 from .prompts import (DISCOVER_SYSTEM_PROMPT, SYSTEM_PROMPT,
                       render_discover_step, render_step)
 
@@ -67,7 +67,7 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
     device.launch(package)
     device.wait(2.0)
 
-    llm = LLMClient()
+    llm = get_backend()
     print(f"[nimo] llm: {llm.base_url} / {llm.model}")
 
     report_text = ""
