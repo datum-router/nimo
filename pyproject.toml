@@ -43,6 +43,12 @@ Issues = "https://github.com/datum-router/nimo/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/nimo"]
 
+# The prebuilt autofill-service APK is package DATA the engine installs onto
+# the device at runtime (engine/autofill.py resolves it relative to __file__).
+# It must ship in the wheel, so name it explicitly.
+[tool.hatch.build]
+artifacts = ["src/nimo/engine/data/*.apk"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

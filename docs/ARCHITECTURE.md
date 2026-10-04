@@ -6,16 +6,16 @@ nimo is a small, readable agent loop. Four modules, no frameworks.
 bug report (md) + APK
         |
         v
-  agent/repro.py        main loop: install -> act -> observe -> verdict
+  src/nimo/engine/repro.py        main loop: install -> act -> observe -> verdict
         |  \
-        |   \--> agent/llm.py      OpenAI-compatible chat client
+        |   \--> src/nimo/engine/llm.py      OpenAI-compatible chat client
         |                          (Pollinations.ai by default, free, no key)
         |
-        \--> agent/device.py     adb primitives: install, launch, uiautomator
+        \--> src/nimo/engine/device.py     adb primitives: install, launch, uiautomator
                                   dump, tap/swipe/type, logcat crash watch,
                                   screenshots
         |
-        \--> agent/prompts.py    system + per-step prompts
+        \--> src/nimo/engine/prompts.py    system + per-step prompts
 
         v
   repro_report.json     verdict (reproduced | not_reproduced),
@@ -26,15 +26,15 @@ bug report (md) + APK
 ## Modules
 | File | Job |
 |---|---|
-| `agent/repro.py` | Path A: targeted bug reproduction loop (25-step LLM agent) |
-| `agent/pipeline.py` | Orchestrator: static map → install → Path A and/or B → report |
-| `agent/apkmeta.py` | Static analysis via androguard: activities, exported flags, deep links, permissions — the coverage denominator |
-| `agent/crawler.py` | Path B: BFS exploration — direct `am start` per activity, deep-link firing, per-element sweep, state fingerprinting |
-| `agent/auth.py` | Login walls: provided credentials → auto sign-up → Google Sign-In (pre-authed snapshot) → honest unreachable |
-| `agent/triage.py` | Crash dedup by stack-trace fingerprint |
-| `agent/device.py` | adb primitives: install/launch, UI dump, tap/swipe/type, logcat crash watch, screenshots, direct activity launch |
-| `agent/llm.py` | OpenAI-compatible client (Pollinations default, swappable) |
-| `agent/prompts.py` | System/step prompts for repro + free-roam discover modes |
+| `src/nimo/engine/repro.py` | Path A: targeted bug reproduction loop (25-step LLM agent) |
+| `src/nimo/engine/pipeline.py` | Orchestrator: static map → install → Path A and/or B → report |
+| `src/nimo/engine/apkmeta.py` | Static analysis via androguard: activities, exported flags, deep links, permissions — the coverage denominator |
+| `src/nimo/engine/crawler.py` | Path B: BFS exploration — direct `am start` per activity, deep-link firing, per-element sweep, state fingerprinting |
+| `src/nimo/engine/auth.py` | Login walls: provided credentials → auto sign-up → Google Sign-In (pre-authed snapshot) → honest unreachable |
+| `src/nimo/engine/triage.py` | Crash dedup by stack-trace fingerprint |
+| `src/nimo/engine/device.py` | adb primitives: install/launch, UI dump, tap/swipe/type, logcat crash watch, screenshots, direct activity launch |
+| `src/nimo/engine/llm.py` | OpenAI-compatible client (Pollinations default, swappable) |
+| `src/nimo/engine/prompts.py` | System/step prompts for repro + free-roam discover modes |
 
 ## How a run works
 1. **Setup** — `force-stop`, `install -r -g`, `logcat -c`, launch via monkey.

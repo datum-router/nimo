@@ -15,13 +15,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install androguard
-        run: pip install -q androguard
+      - name: Install nimo
+        run: pip install -q -e ".[apk]"
 
       - name: Preflight all demo APKs (no emulator needed)
         run: |
           for apk in demo/*/app.apk; do
-            python3 -m agent.preflight "$apk" || exit 2
+            nimo preflight "$apk" || exit 2
           done
 
   repro:
@@ -42,6 +42,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install nimo
+        run: pip install -q -e ".[apk]"
+
       - name: Run repro agent on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -50,7 +53,7 @@ jobs:
           target: default
           script: |
             adb wait-for-device
-            python -m agent.repro \
+            nimo repro \
               --apk demo/${{ matrix.demo.dir }}/app.apk \
               --package ${{ matrix.demo.package }} \
               --bug demo/${{ matrix.demo.dir }}/bug_report.md \

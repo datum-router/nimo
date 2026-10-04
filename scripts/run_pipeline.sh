@@ -98,7 +98,7 @@ PUSHER=$!
 # Watchdog: a wedged adb (sick emulator) must never burn the whole
 # 6-hour job timeout. Kill the pipeline past the user's budget plus
 # slack; the honest "failed" fallback below still reports the outcome.
-timeout "$((MAXMIN + 10))m" python3 -m agent.pipeline "${ARGS[@]}" 2>&1 | tee pipeline.log
+timeout "$((MAXMIN + 10))m" nimo pipeline "${ARGS[@]}" 2>&1 | tee pipeline.log
 STATUS=${PIPESTATUS[0]}
 if [ "$STATUS" -eq 124 ]; then
   echo "watchdog: pipeline exceeded $((MAXMIN + 10)) minutes, killed"
@@ -109,7 +109,7 @@ echo "pipeline exit: $STATUS"
 
 # summarize — or an honest fallback, never a fake verdict
 if [ -f out/pipeline_report.json ]; then
-  python3 -m agent.summarize \
+  nimo summarize \
     --report out/pipeline_report.json \
     --out "summary.json" \
     --android-version "$AVER" \

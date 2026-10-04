@@ -1,9 +1,13 @@
 #!/bin/bash
 # Build nimo-autofill.apk with plain SDK command-line tools (no Gradle).
 #   ANDROID_SDK_ROOT=~/workspace/android-sdk ./build.sh
-# Output: nimo-autofill.apk (signed with debug.keystore, committed to repo)
+# Output: src/nimo/engine/data/nimo-autofill.apk (signed with debug.keystore,
+# committed to the repo and shipped as package data so `pip install nimo`
+# carries it).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$HERE/../.." && pwd)"
+APK_OUT="$REPO_ROOT/src/nimo/engine/data/nimo-autofill.apk"
 SDK="${ANDROID_SDK_ROOT:-$HOME/workspace/android-sdk}"
 BT="$SDK/build-tools/34.0.0"
 PLATFORM="$SDK/platforms/android-34"
@@ -52,6 +56,6 @@ if [ ! -f "$KS" ]; then
         -dname "CN=nimo test key" 2>/dev/null
 fi
 "$BT/apksigner" sign --ks "$KS" --ks-pass pass:nimoautofill \
-    --out "$HERE/nimo-autofill.apk" "$OUT/aligned.apk"
-echo "built: $HERE/nimo-autofill.apk"
-"$BT/apksigner" verify --print-certs "$HERE/nimo-autofill.apk" | head -3
+    --out "$APK_OUT" "$OUT/aligned.apk"
+echo "built: $APK_OUT"
+"$BT/apksigner" verify --print-certs "$APK_OUT" | head -3

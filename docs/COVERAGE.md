@@ -31,7 +31,7 @@ app's classes, exactly as the VALOR-Droid campaign does.
    the pipeline force-stops the app before pulling, which flushes it.
 2. Run the pipeline:
    ```
-   python -m agent.pipeline --apk app.apk \
+   nimo pipeline --apk app.apk \
        --coverage-apk app-jacoco.apk \
        --out out/coverage-run/
    ```

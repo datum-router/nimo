@@ -8,7 +8,7 @@ JSON line to ``<out_dir>/actions.jsonl``::
 
 Coordinates are stored as fractions of the screen size so the web UI can
 place click markers on the screenshot at any display size. The live
-progress pusher (agent/run_pipeline.sh) tails this file — no log grepping.
+progress pusher (scripts/run_pipeline.sh) tails this file — no log grepping.
 """
 
 from __future__ import annotations

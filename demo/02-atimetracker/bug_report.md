@@ -28,7 +28,7 @@ menu item is tapped.
 
 ## Run it
 ```bash
-python -m agent.repro --apk demo/02-atimetracker/app.apk \
+nimo repro --apk demo/02-atimetracker/app.apk \
     --package com.markuspage.android.atimetracker \
     --bug demo/02-atimetracker/bug_report.md \
     --out out/02-atimetracker/

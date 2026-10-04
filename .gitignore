@@ -16,7 +16,10 @@ htmlcov/
 # nimo run artifacts
 runs/
 out/
-*.apk
+# The APK fetched into the repo root by a CI run. Demo APKs
+# (demo/*/app.apk) and the autofill service APK are committed deliberately,
+# so do NOT blanket-ignore *.apk here.
+/app.apk
 *.ec
 coverage.xml
 screenshots/

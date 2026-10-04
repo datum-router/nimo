@@ -127,7 +127,7 @@ def bypass(apk: str, package: str, out_apk: str,
 
 def main() -> None:
     if len(sys.argv) != 4:
-        print("usage: python -m agent.login_bypass app.apk com.pkg out.apk",
+        print("usage: python -m nimo.engine.login_bypass app.apk com.pkg out.apk",
               file=sys.stderr)
         sys.exit(2)
     try:
