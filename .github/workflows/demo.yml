@@ -30,6 +30,19 @@ jobs:
     # accelerated and never finishes booting. Ubuntu + KVM (granted below)
     # is the accelerated x86_64 path and matches redroid-test.yml.
     runs-on: ubuntu-latest
+    env:
+      # Provider overrides, when the repo owner has configured them.
+      NIMO_BASE_URL: ${{ secrets.NIMO_BASE_URL }}
+      NIMO_API_KEY: ${{ secrets.NIMO_API_KEY }}
+      NIMO_MODEL: ${{ secrets.NIMO_MODEL }}
+      # With no provider secret there is no usable LLM: the free Pollinations
+      # POST endpoint now answers 402 Payment Required (and 500 ENOSPC), so a
+      # run against it fails for reasons unrelated to this repo. Fall back to
+      # the deterministic backend, which drives the device / oracle / report
+      # path end to end but does NOT exercise the model's reasoning. The run
+      # log prints the backend in use, so a green job here can never be
+      # mistaken for a reproduced bug.
+      NIMO_BACKEND: ${{ secrets.NIMO_API_KEY == '' && 'null' || '' }}
     strategy:
       fail-fast: false
       matrix:

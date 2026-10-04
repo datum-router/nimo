@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 
 from . import actions, apkmeta, auth, autofill, blockers, coverage, deeplinks, device, login_prologue, preflight
 from .crawler import CrawlBudget, explore
-from ..llm import LLMClient
+from ..llm import get_backend
 from .repro import reproduce
 
 
@@ -84,7 +84,7 @@ def main() -> None:
     serial = device.check_connected()
     print(f"[nimo] device: {serial}")
 
-    llm = LLMClient()
+    llm = get_backend()
     cfg = auth.AuthConfig.from_file(args.auth)
     report: dict = {
         "tool": "nimo-pipeline",
