@@ -479,9 +479,25 @@ async function dispatch(){
           "Accept":"application/vnd.github+json", "Content-Type":"application/json" },
         body: JSON.stringify({ ref:"main", inputs }) });
       if (r.status === 401) throw new Error("Token rejected (401) — check it and try again.");
-      if (r.status === 403) throw new Error("Token lacks permission (403) — it needs Actions: write on datum-router/nimo.");
-      if (r.status === 404) throw new Error("Workflow not found (404) — is the token scoped to datum-router/nimo?");
-      if (!r.ok) throw new Error("GitHub API error " + r.status);
+      if (!r.ok) {
+        // GitHub explains every refusal in the response body. Reporting only
+        // the status code ("GitHub API error 422") hides a one-line fix, so
+        // always surface its own message.
+        let detail = "";
+        try { const j = await r.json(); detail = j.message || ""; } catch (_) {}
+        const wfUrl = `https://github.com/${REPO}/actions/workflows/${WF}`;
+        if (r.status === 403) throw new Error(
+          "Token lacks permission (403) — it needs Actions: write on " + REPO +
+          (detail ? ". GitHub said: " + detail : ""));
+        if (r.status === 404) throw new Error(
+          "Workflow not found (404) — is the token scoped to " + REPO + "?" +
+          (detail ? " GitHub said: " + detail : ""));
+        if (r.status === 422) throw new Error(
+          "GitHub rejected the run (422)" + (detail ? ": " + detail : "") +
+          ". The usual cause is the workflow being disabled in the Actions tab — " +
+          "open " + wfUrl + " and click “Enable workflow”, then try again.");
+        throw new Error("GitHub API error " + r.status + (detail ? ": " + detail : ""));
+      }
       dispatchedAt = new Date().toISOString();
       $("tok-state").textContent = "✓ token accepted";
     }

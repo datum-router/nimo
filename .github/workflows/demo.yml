@@ -25,7 +25,11 @@ jobs:
           done
 
   repro:
-    runs-on: macos-14
+    # Was macos-14, but GitHub resolves that to macos-14-arm64 (Apple
+    # Silicon), where the x86_64 system image below cannot be hardware
+    # accelerated and never finishes booting. Ubuntu + KVM (granted below)
+    # is the accelerated x86_64 path and matches redroid-test.yml.
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -45,12 +49,23 @@ jobs:
       - name: Install nimo
         run: pip install -q -e ".[apk]"
 
+      # /dev/kvm exists on GitHub-hosted runners but the `kvm` group is empty,
+      # so without this the emulator falls back to -accel off and times out.
+      - name: Enable KVM access
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm || echo "no /dev/kvm on this runner — emulator will be slow"
+
       - name: Run repro agent on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
           arch: x86_64
           target: default
+          disable-linux-hw-accel: false
           script: |
             adb wait-for-device
             nimo repro \

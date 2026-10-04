@@ -254,6 +254,22 @@ jobs:
           path: ${{ env.ANDROID_SDK_ROOT }}/system-images
           key: sysimg-${{ steps.env.outputs.api_level }}-${{ steps.env.outputs.target }}-x86_64
 
+      # GitHub-hosted runners DO ship /dev/kvm, but the `kvm` group is empty
+      # (`kvm:x:993:`), so the runner user cannot open it. The emulator then
+      # probes KVM, fails, and starts with `-accel off`; a software-rendered
+      # x86_64 image cannot finish booting inside the timeout, which is the
+      # "Timeout waiting for emulator to boot" failure. Granting access is the
+      # fix documented by reactivecircus/android-emulator-runner.
+      - name: Enable KVM access
+        if: steps.binder.outputs.available != 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          # Informational only: never fail the run just because the probe is odd.
+          ls -l /dev/kvm || echo "no /dev/kvm on this runner — emulator will be slow"
+
       # NOTE: the emulator is killed when this step ends, so the whole
       # pipeline runs INSIDE the boot script while the device is alive.
       - name: Boot emulator and run pipeline (fallback)
@@ -264,6 +280,9 @@ jobs:
           target: ${{ steps.env.outputs.target }}
           arch: x86_64
           disable-animations: true
+          # KVM is granted above, so keep hardware acceleration on; `auto`
+          # would silently disable it again on any probe hiccup.
+          disable-linux-hw-accel: false
           emulator-options: -no-snapshot-save -noaudio -no-boot-anim -camera-back none -gpu swiftshader_indirect
           # NOTE: this action executes the script line-by-line, so the whole
           # invocation must be a single line (no backslash continuations).
