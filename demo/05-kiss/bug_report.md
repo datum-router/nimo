@@ -24,7 +24,7 @@ The favorites bar never appears — the setting makes it permanently hidden.
 
 ## Run it
 ```bash
-python -m agent.repro --apk demo/05-kiss/app.apk \
+nimo repro --apk demo/05-kiss/app.apk \
     --package fr.neamar.kiss.debug \
     --bug demo/05-kiss/bug_report.md \
     --out out/05-kiss/

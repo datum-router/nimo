@@ -62,11 +62,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install adb + python deps
+      - name: Install adb + nimo
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq android-tools-adb
-          pip install -q androguard
+          # Installs the `nimo` CLI plus the APK-analysis extra (androguard).
+          pip install -q -e ".[apk]"
 
       # ---- device: redroid if binder exists, emulator otherwise ----
       # ---- test inputs (before device boot: preflight fails fast) ----
@@ -92,7 +93,7 @@ jobs:
 
       - name: Preflight APK
         run: |
-          python3 -m agent.preflight app.apk
+          nimo preflight app.apk
 
       # Customer leaves version/arch on "auto" (the default): derive both
       # from the APK itself. A pinned version that the APK cannot install
@@ -105,7 +106,7 @@ jobs:
         run: |
           python3 - <<'EOF' >> "$GITHUB_OUTPUT"
           import os, sys
-          from agent.preflight import recommend_env, VERSION_API
+          from nimo.engine.preflight import recommend_env, VERSION_API
           rec = recommend_env("app.apk")
           ver = os.environ["WANT_VERSION"]
           arch = os.environ["WANT_ARCH"]
@@ -238,12 +239,12 @@ jobs:
           emulator-options: -no-snapshot-save -noaudio -no-boot-anim -camera-back none -gpu swiftshader_indirect
           # NOTE: this action executes the script line-by-line, so the whole
           # invocation must be a single line (no backslash continuations).
-          script: adb -s emulator-5554 wait-for-device && bash "$GITHUB_WORKSPACE/agent/run_pipeline.sh" emulator emulator-5554 "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ inputs.bug_report != '' }}"
+          script: adb -s emulator-5554 wait-for-device && bash "$GITHUB_WORKSPACE/scripts/run_pipeline.sh" emulator emulator-5554 "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ inputs.bug_report != '' }}"
 
       - name: Run nimo pipeline (with live progress)
         if: steps.binder.outputs.available == 'true'
         run: |
-          bash agent/run_pipeline.sh redroid "$ANDROID_SERIAL" \
+          bash scripts/run_pipeline.sh redroid "$ANDROID_SERIAL" \
             "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" \
             "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ inputs.bug_report != '' }}"
 

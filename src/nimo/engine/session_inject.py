@@ -7,8 +7,8 @@ construction). The trick: log in once on any device, `capture()` the app's
 scripting, no per-run login.
 
 Usage:
-    python -m agent.session_inject capture com.example.app /tmp/sess
-    python -m agent.session_inject restore com.example.app /tmp/sess
+    python -m nimo.engine.session_inject capture com.example.app /tmp/sess
+    python -m nimo.engine.session_inject restore com.example.app /tmp/sess
 """
 
 from __future__ import annotations

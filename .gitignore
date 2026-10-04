@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# nimo run artifacts
+runs/
+out/
+# The APK fetched into the repo root by a CI run. Demo APKs
+# (demo/*/app.apk) and the autofill service APK are committed deliberately,
+# so do NOT blanket-ignore *.apk here.
+/app.apk
+*.ec
+coverage.xml
+screenshots/
+*.png
+!docs/**/*.png
+logcat*.txt
+ui_*.xml
+
+# local config with credentials
+auth.yaml
+auth.local.yaml
+.env
+
+# OS
+.DS_Store

@@ -27,7 +27,7 @@ import tempfile
 
 from . import device
 
-APK_PATH = os.path.join(os.path.dirname(__file__), "autofill", "nimo-autofill.apk")
+APK_PATH = os.path.join(os.path.dirname(__file__), "data", "nimo-autofill.apk")
 SERVICE_COMPONENT = "com.nimo.autofill/.NimoAutofillService"
 CRED_DEVICE_PATH = "/data/local/tmp/nimo-autofill.json"
 DATASET_LABEL = "nimo test login"
@@ -38,7 +38,7 @@ def setup(cfg, package: str | None = None) -> tuple[bool, str]:
     if not getattr(cfg, "email", None) or not getattr(cfg, "password", None):
         return False, "no email/password in auth config — autofill not configured"
     if not os.path.isfile(APK_PATH):
-        return False, "nimo-autofill.apk missing — run agent/autofill/build.sh"
+        return False, "nimo-autofill.apk missing — run android/autofill/build.sh"
     try:
         device.install(APK_PATH)
     except Exception as exc:

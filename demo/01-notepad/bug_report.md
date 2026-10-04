@@ -22,7 +22,7 @@ The app crashes immediately back to the home screen; a `FATAL EXCEPTION` is reco
 
 ## Run it
 ```bash
-python -m agent.repro --apk demo/01-notepad/app.apk \
+nimo repro --apk demo/01-notepad/app.apk \
     --package bander.notepad \
     --bug demo/01-notepad/bug_report.md \
     --out out/01-notepad/

@@ -9,9 +9,9 @@ Two paths, one engine:
                                  element -> crash triage -> coverage report
 
 Usage:
-    python -m agent.pipeline --apk app.apk --out out/run1/
-    python -m agent.pipeline --apk app.apk --bug report.md --auth auth.yaml --out out/run2/
-    python -m agent.pipeline --apk app.apk --coverage-apk app-jacoco.apk --out out/run3/
+    nimo pipeline --apk app.apk --out out/run1/
+    nimo pipeline --apk app.apk --bug report.md --auth auth.yaml --out out/run2/
+    nimo pipeline --apk app.apk --coverage-apk app-jacoco.apk --out out/run3/
 
 The --coverage-apk is a JaCoCo-instrumented build of the same app (built
 with the VALOR-Droid toolchain, see docs/COVERAGE.md). When given, the
@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 
 from . import actions, apkmeta, auth, autofill, blockers, coverage, deeplinks, device, login_prologue, preflight
 from .crawler import CrawlBudget, explore
-from .llm import LLMClient
+from ..llm import LLMClient
 from .repro import reproduce
 
 

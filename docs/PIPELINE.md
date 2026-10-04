@@ -1,6 +1,6 @@
 # nimo pipeline
 
-`python -m agent.pipeline` — the full test pass over an APK. Two paths,
+`nimo pipeline` — the full test pass over an APK. Two paths,
 one engine.
 
 ## Path A — bug report given (targeted)
@@ -19,12 +19,12 @@ Result lands in `out/repro/`.
 --apk app.apk --auth auth.yaml
 ```
 
-1. **Map** (`agent/apkmeta.py`) — parse the manifest with androguard:
+1. **Map** (`src/nimo/engine/apkmeta.py`) — parse the manifest with androguard:
    every activity, exported flags, intent-filter deep links, permissions.
    This is the coverage denominator.
 2. **Install** — `install -r -g`, clear logcat, pre-grant permissions so
    dialogs don't block the crawl.
-3. **Crawl** (`agent/crawler.py`) — breadth-first over the map:
+3. **Crawl** (`src/nimo/engine/crawler.py`) — breadth-first over the map:
    - every activity launched **directly** (`am start -n`), no lucky tap
      sequences needed for deep screens;
    - every deep link fired (`am start -a VIEW -d`);
@@ -32,11 +32,11 @@ Result lands in `out/repro/`.
      realistic value plus edge-case inputs;
    - state fingerprinting prevents loops; visited (activity, screen)
      pairs are never re-processed.
-4. **Login** (`agent/auth.py`) — login walls are classified and handled:
+4. **Login** (`src/nimo/engine/auth.py`) — login walls are classified and handled:
    provided credentials → automatic throwaway sign-up → Google Sign-In
    via the pre-authed emulator snapshot (docs/GOOGLE_LOGIN.md) →
    honest "unreachable + reason" if nothing works.
-5. **Triage** (`agent/triage.py`) — every logcat `FATAL EXCEPTION`
+5. **Triage** (`src/nimo/engine/triage.py`) — every logcat `FATAL EXCEPTION`
    becomes a stack-trace fingerprint; 50 crashes of one bug collapse
    into one entry with occurrence counts.
 6. **Report** — `pipeline_report.json`: activities visited / total

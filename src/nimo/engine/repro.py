@@ -3,13 +3,13 @@
 Two modes:
 
 repro (default) — bug report + APK in, verdict out:
-    python -m agent.repro --apk demo/01-notepad/app.apk \\
+    nimo repro --apk demo/01-notepad/app.apk \\
         --package bander.notepad \\
         --bug demo/01-notepad/bug_report.md \\
         --out out/notepad/
 
 discover — APK only, the agent explores and hunts for bugs itself:
-    python -m agent.repro --discover --apk app.apk \\
+    nimo repro --discover --apk app.apk \\
         --package com.example.app \\
         --out out/discovery/
 
@@ -25,8 +25,8 @@ import os
 import time
 from datetime import datetime, timezone
 
-from . import device
-from .llm import LLMClient
+from . import device, gestures
+from ..llm import LLMClient
 from .prompts import (DISCOVER_SYSTEM_PROMPT, SYSTEM_PROMPT,
                       render_discover_step, render_step)
 
@@ -116,13 +116,16 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
         try:
             if kind == "tap":
                 xy = _find_xy(elements, action.get("label", ""))
-                if xy: device.tap(*xy)
+                if xy:
+                    device.tap(*xy)
             elif kind == "long_press":
                 xy = _find_xy(elements, action.get("label", ""))
-                if xy: device.swipe(xy[0], xy[1], xy[0], xy[1], ms=800)
+                if xy:
+                    gestures.long_press(xy[0], xy[1], ms=800)
             elif kind == "type":
                 xy = _find_xy(elements, action.get("label", ""))
-                if xy: device.tap(*xy)
+                if xy:
+                    device.tap(*xy)
                 device.wait(0.5)
                 device.input_text(action.get("text", ""))
             elif kind == "swipe_up":

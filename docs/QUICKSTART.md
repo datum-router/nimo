@@ -11,7 +11,7 @@ No `pip install` — nimo is standard library only.
 ## Run a demo
 ```bash
 cd nimo
-python -m agent.repro --apk demo/01-notepad/app.apk \
+nimo repro --apk demo/01-notepad/app.apk \
     --package bander.notepad \
     --bug demo/01-notepad/bug_report.md \
     --out out/01-notepad/
@@ -22,7 +22,7 @@ per-step screenshots in `out/01-notepad/screenshots/`.
 
 ## Discover bugs with no bug report
 ```bash
-python -m agent.repro --discover \
+nimo repro --discover \
     --apk demo/01-notepad/app.apk \
     --package bander.notepad \
     --out out/discovery/
@@ -37,7 +37,7 @@ Free-roam discover is a wander; the pipeline is systematic:
 
 ```bash
 cp config/auth.yaml.example auth.yaml   # add test creds / google account
-python -m agent.pipeline --apk demo/01-notepad/app.apk \
+nimo pipeline --apk demo/01-notepad/app.apk \
     --auth auth.yaml \
     --out out/pipeline/
 ```
@@ -56,7 +56,7 @@ JaCoCo code coverage from the VALOR-Droid toolchain (`docs/COVERAGE.md`).
 ```bash
 for d in 01-notepad 02-atimetracker 03-asciicam 04-comicviewer 05-kiss; do
   pkg=$(grep -oP '(?<=`)[a-z][a-z0-9._]*(?=`)' demo/$d/bug_report.md | head -1)
-  python -m agent.repro --apk demo/$d/app.apk --package "$pkg" \
+  nimo repro --apk demo/$d/app.apk --package "$pkg" \
       --bug demo/$d/bug_report.md --out out/$d/ || true
 done
 ```
@@ -77,4 +77,4 @@ Defaults (Pollinations.ai, free, anonymous):
 1. Drop the APK anywhere, write the bug report as markdown
    (title, steps, expected vs observed behavior).
 2. Find the package name: `aapt dump badging app.apk | grep package`.
-3. Run `python -m agent.repro` as above.
+3. Run `nimo repro` as above.

@@ -24,12 +24,11 @@ Config file (yaml-ish, parsed without dependencies — simple `key: value`):
 from __future__ import annotations
 
 import json
-import re
 import uuid
 from dataclasses import dataclass
 
 from . import autofill, device
-from .llm import LLMClient
+from ..llm import LLMClient
 
 AUTH_CLASSIFY_PROMPT = """You are helping an automated app-testing agent. Look at \
 this Android screen and decide whether it is a login / sign-up wall.

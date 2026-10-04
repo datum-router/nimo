@@ -22,7 +22,7 @@ the list is empty after rotation but the delete path still indexes into it.
 
 ## Run it
 ```bash
-python -m agent.repro --apk demo/03-asciicam/app.apk \
+nimo repro --apk demo/03-asciicam/app.apk \
     --package com.dozingcatsoftware.asciicam \
     --bug demo/03-asciicam/bug_report.md \
     --out out/03-asciicam/

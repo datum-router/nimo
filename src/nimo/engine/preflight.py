@@ -4,7 +4,7 @@ Pure static analysis (androguard) — no device needed, so this runs on the
 CI runner *before* the emulator/redroid boots. Exit 0 = go, exit 2 = refused.
 
 Usage:
-    python -m agent.preflight app.apk [--package com.example.app] [--coverage]
+    nimo preflight app.apk [--package com.example.app] [--coverage]
 """
 
 from __future__ import annotations

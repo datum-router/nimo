@@ -32,7 +32,7 @@ import time
 from dataclasses import dataclass, field
 
 from . import actions, apkmeta, auth, blockers, device, tarpit, triage
-from .llm import LLMClient
+from ..llm import LLMClient
 
 FIELD_VALUES_PROMPT = """You are helping an automated app-testing agent. \
 Suggest a realistic test value for each text field on this Android screen.

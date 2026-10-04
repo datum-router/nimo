@@ -322,7 +322,7 @@
 (function(){
   const el = document.getElementById('term');
   const script = [
-    ['p','$ python -m agent.repro --apk demo/01-notepad/app.apk --bug demo/01-notepad/bug_report.md'],
+    ['p','$ nimo repro --apk demo/01-notepad/app.apk --bug demo/01-notepad/bug_report.md'],
     ['','[nimo] device: emulator-5554'],
     ['','[nimo] llm: pollinations.ai / openai'],
     ['p','[nimo] step 1: tap "More options"  (creating a note first)'],
@@ -373,11 +373,11 @@
     {k:['what is nimo','what does nimo do','about nimo','who is nimo','explain nimo'],
      a:"nimo is an AI agent for apps that ship fast. It has two modes: Reproduce — you give it a bug report plus the APK and it returns a verified reproduction with steps, screenshots, and the crash log; and Discover — you give it just the APK and it explores the app itself, hunting for bugs, and reports everything it finds."},
     {k:['discover','just the apk','only the apk','no bug report','explore','hunt','find bugs'],
-     a:"Discover mode is nimo's APK-only mode: no bug report needed. The agent explores your app like a relentless QA engineer — every screen, menu, and edge input — and gets back to you with every bug it found, each with its trace and crash log. Run it with: python -m agent.repro --discover --apk app.apk --package com.example.app --out out/"},
+     a:"Discover mode is nimo's APK-only mode: no bug report needed. The agent explores your app like a relentless QA engineer — every screen, menu, and edge input — and gets back to you with every bug it found, each with its trace and crash log. Run it with: nimo repro --discover --apk app.apk --package com.example.app --out out/"},
     {k:['reproduce','reproduction','bug report'],
      a:"Reproduce mode: hand nimo the bug report your customer sent you plus the APK. It drives the app through the report and returns a verdict — reproduced or not_reproduced — with the step-by-step trace, screenshots, and the logcat crash. A 'reproduced' verdict on a crash requires a real FATAL EXCEPTION."},
     {k:['pipeline','every corner','systematic','full test','bfs','crawl'],
-     a:"The nimo pipeline (python -m agent.pipeline) is the systematic path: it parses the APK manifest into a map of every activity and deep link, launches each one directly, exercises every button and field breadth-first, handles login walls, dedupes crashes by stack fingerprint, and reports honest coverage — like 'visited 21 of 23 screens' — with unreachable screens explained."},
+     a:"The nimo pipeline (nimo pipeline) is the systematic path: it parses the APK manifest into a map of every activity and deep link, launches each one directly, exercises every button and field breadth-first, handles login walls, dedupes crashes by stack fingerprint, and reports honest coverage — like 'visited 21 of 23 screens' — with unreachable screens explained."},
     {k:['run a test','try it','test my app','cloud test','run page'],
      a:"You can run nimo in the cloud right from the site: open the 'Run a test' page, pick an Android version and architecture, choose a demo APK or paste your APK's https URL, optionally add a bug report, and hit run. It boots Android (redroid, or the emulator as fallback) on GitHub Actions, streams progress live, and finishes with a verdict, a coverage diagram, and a plain-language note."},
     {k:['google','sign in with google','oauth','login'],

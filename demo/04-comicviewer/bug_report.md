@@ -27,7 +27,7 @@ installed.
 
 ## Run it
 ```bash
-python -m agent.repro --apk demo/04-comicviewer/app.apk \
+nimo repro --apk demo/04-comicviewer/app.apk \
     --package net.androidcomics.acv \
     --bug demo/04-comicviewer/bug_report.md \
     --out out/04-comicviewer/
