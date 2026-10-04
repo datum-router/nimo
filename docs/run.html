@@ -202,6 +202,7 @@ details.boring summary:hover{color:var(--txt)}
         <input type="file" id="f-bugfile" class="hiddenfile" accept=".txt,.md,.text,text/plain">
         <span class="filename" id="f-bugfile-name"></span>
       </div>
+      <p class="hint" id="bug-state">Pick a demo APK and this fills itself in — every demo ships the original bug report.</p>
       <div class="row">
         <div>
           <label>Max test time (minutes)</label>
@@ -279,6 +280,7 @@ const WORKER_URL = ""; // e.g. "https://nimo-dispatch.you.workers.dev"
 const REPO = "datum-router/nimo", WF = "redroid-test.yml";
 const API = `https://api.github.com/repos/${REPO}/actions/workflows/${WF}`;
 const RAW = `https://raw.githubusercontent.com/${REPO}/live`;
+const RAW_MAIN = `https://raw.githubusercontent.com/${REPO}/main`;
 
 const $ = id => document.getElementById(id);
 let runId = null, pollTimers = [];
@@ -336,9 +338,70 @@ $("f-bugfile").addEventListener("change", () => {
   $("f-bugfile-name").textContent = f ? f.name + " (" + Math.round(f.size/1024) + " KB)" : "";
   if (!f) return;
   const rd = new FileReader();
-  rd.onload = () => { $("f-bug").value = String(rd.result || "").slice(0, 20000); updateManualCmd(); };
+  rd.onload = () => {
+    $("f-bug").value = String(rd.result || "").slice(0, 20000);
+    bugAutofilled = false;
+    $("bug-state").textContent = "using the report you attached.";
+    updateManualCmd();
+  };
   rd.readAsText(f);
 });
+
+// ---- demo bug reports ----
+// Every demo in the repo ships the original bug report next to its APK, so
+// repro mode on a demo APK should never ask the customer to write one. Pull it
+// straight from the repo and drop it in. `bugAutofilled` tracks whether the
+// textarea holds our text or the user's, so we never clobber something typed.
+let bugAutofilled = false;
+$("f-bug").addEventListener("input", () => {
+  bugAutofilled = false;
+  if ($("f-bug").value.trim()) $("bug-state").textContent = "using the report you pasted.";
+});
+async function loadDemoBug(force){
+  const ta = $("f-bug"), note = $("bug-state"), cur = ta.value.trim();
+  if (apkSrcMode() !== "demo") return cur;
+  if (cur && !bugAutofilled && !force) return cur;   // the user's own text wins
+  const sel = $("f-demo");
+  const id = sel.value || (sel.options && sel.options.length ? sel.options[0].value : "");
+  if (!id) return cur;
+  note.textContent = "fetching the bug report for " + id + "…";
+  try {
+    const r = await fetch(`${RAW_MAIN}/demo/${id}/bug_report.md`, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const txt = String(await r.text()).slice(0, 20000);
+    ta.value = txt;
+    bugAutofilled = true;
+    note.textContent = "✓ loaded the original bug report for " + id + " — edit it, or paste your own.";
+    updateManualCmd();
+    return txt.trim();
+  } catch(e) {
+    note.textContent = "couldn't fetch " + id + "'s bug report (" + e.message + ") — paste one to run repro mode.";
+    return ta.value.trim();
+  }
+}
+// repro + demo APK => fill it in, without making the customer think about it
+document.querySelectorAll('input[name=mode]').forEach(r =>
+  r.addEventListener("change", () => {
+    if (mode() === "repro") { loadDemoBug(false); return; }
+    if (mode() === "discover" && bugAutofilled) {
+      // a bug report selects targeted reproduction — discover must explore blind
+      $("f-bug").value = ""; bugAutofilled = false;
+      $("bug-state").textContent = "discover mode explores blind — no bug report needed.";
+      updateManualCmd();
+    }
+  }));
+$("f-demo").addEventListener("change", () => { if (mode() === "repro") loadDemoBug(false); });
+document.querySelectorAll('input[name=apksrc]').forEach(r =>
+  r.addEventListener("change", () => {
+    if (apkSrcMode() === "custom" && bugAutofilled) {
+      // a demo's report describes the demo app, not the APK they just supplied
+      $("f-bug").value = ""; bugAutofilled = false;
+      $("bug-state").textContent = "paste or attach the bug report for your own APK.";
+      updateManualCmd();
+    } else if (mode() === "repro") {
+      loadDemoBug(false);
+    }
+  }));
 
 if (!WORKER_URL) {
   $("worker-note").textContent = "No dispatch worker configured — the page can start runs directly with your token (stored only in this browser), or trigger manually:";
@@ -381,8 +444,12 @@ async function uploadApk(file){
 }
 
 async function dispatch(){
-  const m = mode(), bug = $("f-bug").value.trim();
-  if (m === "repro" && !bug) { alert("Repro mode needs a bug report — paste or attach one."); return; }
+  const m = mode();
+  let bug = $("f-bug").value.trim();
+  // repro on a demo APK: the report ships with the demo, so fetch it rather
+  // than stopping the customer with an alert.
+  if (m === "repro" && !bug) bug = await loadDemoBug(true);
+  if (m === "repro" && !bug) { alert("Repro mode needs a bug report — paste or attach one, or pick a demo APK (each demo ships its own report)."); return; }
   const btn = $("btn-run"); btn.disabled = true; btn.textContent = "Kicking off…";
   try {
     // resolve the APK: demo id, https link, or uploaded file

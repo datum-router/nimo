@@ -74,20 +74,29 @@ jobs:
       - name: Fetch APK
         run: |
           SRC="${{ inputs.apk_source }}"
+          DEMO_DIR=""
           if [[ "$SRC" == http* ]]; then
             curl -fsSL --max-time 300 -o app.apk "$SRC"
           elif [[ -f "demo/$SRC/app.apk" ]]; then
-            cp "demo/$SRC/app.apk" app.apk
+            DEMO_DIR="demo/$SRC"
+            cp "$DEMO_DIR/app.apk" app.apk
           else
             # tolerate bare names ("notepad" -> "demo/01-notepad")
             match=(demo/*-"$SRC"/app.apk)
             if [[ -f "${match[0]}" ]]; then
+              DEMO_DIR="$(dirname "${match[0]}")"
               cp "${match[0]}" app.apk
             else
               echo "unknown apk_source '$SRC' — valid demo ids:"
               ls demo/
               exit 1
             fi
+          fi
+          # Every demo ships its own bug report. Stash it so repro mode works
+          # on a demo APK without the caller having to paste one in.
+          if [[ -n "$DEMO_DIR" && -f "$DEMO_DIR/bug_report.md" ]]; then
+            cp "$DEMO_DIR/bug_report.md" demo_bug_report.md
+            echo "demo bug report available: $DEMO_DIR/bug_report.md"
           fi
           python3 -c "import zipfile; z=zipfile.ZipFile('app.apk'); print('apk ok:', len(z.namelist()), 'entries')"
 
@@ -137,17 +146,36 @@ jobs:
             echo "::error::this APK ships ARM-only native libraries — amd64 runners cannot execute them. arm64 needs a self-hosted ARM runner with binder; GitHub-hosted ARM runners lack the kernel module."
             exit 1
           fi
-          if [ "${{ inputs.mode }}" = "repro" ] && [ -z "${{ inputs.bug_report }}" ]; then
-            echo "::error::repro mode needs a bug report."
+          if [ "${{ inputs.mode }}" = "repro" ] && [ -z "${{ inputs.bug_report }}" ] && [ ! -f demo_bug_report.md ]; then
+            echo "::error::repro mode needs a bug report — paste one, or pick a demo APK (each demo ships its own)."
             exit 1
           fi
 
       # ---- live progress channel (branch `live`, dir run-<id>) ----
       - name: Write bug report
-        if: inputs.bug_report != ''
+        id: bug
+        env:
+          # Passed through the environment, never interpolated into the shell
+          # script: a bug report is untrusted text and may contain quotes or $(…).
+          BUG_REPORT: ${{ inputs.bug_report }}
         run: |
-          printf '%s' "${{ inputs.bug_report }}" > bug_report.md
-          wc -l bug_report.md
+          if [ -n "$BUG_REPORT" ]; then
+            printf '%s' "$BUG_REPORT" > bug_report.md
+            echo "using the bug report supplied with the dispatch"
+          elif [ -f demo_bug_report.md ] && [ "${{ inputs.mode }}" != "discover" ]; then
+            # `--bug` selects targeted reproduction, so only fall back to the
+            # demo's report in modes that actually want it. discover mode is
+            # meant to explore blind and must not be turned into a repro run.
+            cp demo_bug_report.md bug_report.md
+            echo "using the demo's own bug report"
+          fi
+          if [ -s bug_report.md ]; then
+            echo "has_bug=true" >> "$GITHUB_OUTPUT"
+            wc -l bug_report.md
+          else
+            echo "has_bug=false" >> "$GITHUB_OUTPUT"
+            echo "no bug report — discover/pipeline mode will explore instead"
+          fi
 
       - name: Prepare live branch
         run: |
@@ -239,14 +267,14 @@ jobs:
           emulator-options: -no-snapshot-save -noaudio -no-boot-anim -camera-back none -gpu swiftshader_indirect
           # NOTE: this action executes the script line-by-line, so the whole
           # invocation must be a single line (no backslash continuations).
-          script: adb -s emulator-5554 wait-for-device && bash "$GITHUB_WORKSPACE/scripts/run_pipeline.sh" emulator emulator-5554 "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ inputs.bug_report != '' }}"
+          script: adb -s emulator-5554 wait-for-device && bash "$GITHUB_WORKSPACE/scripts/run_pipeline.sh" emulator emulator-5554 "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ steps.bug.outputs.has_bug }}"
 
       - name: Run nimo pipeline (with live progress)
         if: steps.binder.outputs.available == 'true'
         run: |
           bash scripts/run_pipeline.sh redroid "$ANDROID_SERIAL" \
             "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" \
-            "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ inputs.bug_report != '' }}"
+            "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ steps.bug.outputs.has_bug }}"
 
       - name: Upload artifacts
         if: always()
