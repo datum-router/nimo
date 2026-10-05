@@ -94,8 +94,12 @@ class NullBackend:
 
     def __init__(self) -> None:
         self._elements: list[dict] = []
-        self._tapped: set[str] = set()
+        #: How many times each control has been tapped, by identity. A COUNT
+        #: rather than a visited-set: a burn list runs out, and when it did
+        #: the explorer had nothing left but Back. See `chat`.
+        self._taps: dict[str, int] = {}
         self._scrolls: dict[str, int] = {}
+        self._consecutive_backs = 0
 
     # -- observation ------------------------------------------------------
     def observe(self, elements) -> None:
@@ -108,6 +112,17 @@ class NullBackend:
         a change to the ``chat`` signature every backend shares.
         """
         self._elements = [e for e in (elements or []) if isinstance(e, dict)]
+
+    def relaunched(self) -> None:
+        """The loop put the app back after a step navigated out of it.
+
+        The app's state is fresh, so screens previously judged exhausted are
+        worth another look. Without this the scroll budget stayed spent and
+        the explorer went straight back to Back -- which is what livelocked
+        CI run #31 into 19 Back presses and 18 relaunches.
+        """
+        self._scrolls.clear()
+        self._consecutive_backs = 0
 
     # -- internals --------------------------------------------------------
     @classmethod
@@ -148,26 +163,71 @@ class NullBackend:
     # -- decision ---------------------------------------------------------
     def chat(self, messages, temperature: float = 0.0,
              response_format: dict | None = None) -> str:
+        """Pick the next move: least-visited control, else scroll, else back.
+
+        The ordering matters and was got wrong once. The first version burned
+        each control after one tap and fell through to Back when a screen had
+        nothing new. On a small app that livelocked: CI run #31 pressed Back
+        from the root activity, which EXITS to the launcher, the loop
+        relaunched, the root screen's controls were all burned, so it pressed
+        Back again -- 19 times, with 18 relaunches, for 2 useful taps.
+
+        Choosing the LEAST-VISITED control instead of an unvisited one is
+        what removes the dead end: the frontier never empties, so re-tapping
+        a known control to re-enter a sub-screen is always available and is
+        real exploration rather than a stall. Back is now reserved for a
+        screen with no reachable controls at all, and is capped so a
+        pathological screen cannot spend the whole budget on it.
+        """
         screen = self._screen()
-        for el in self._targets():
-            ident = self._identity(el)
-            if ident in self._tapped:
-                continue
-            self._tapped.add(ident)
+        targets = self._targets()
+
+        if targets:
+            # Fewest taps first; ties broken by position for determinism, so
+            # the same app yields the same walk on every run.
+            best = min(targets, key=lambda el: (
+                self._taps.get(self._identity(el), 0),
+                el.get("y", 0), el.get("x", 0)))
+            ident = self._identity(best)
+            seen = self._taps.get(ident, 0)
+            # Only scroll for MORE controls while this screen still has
+            # untouched ones; otherwise scrolling is just a slower Back.
+            if seen > 0 and self._scrolls.get(screen, 0) < self.SCROLLS_PER_SCREEN:
+                self._scrolls[screen] = self._scrolls.get(screen, 0) + 1
+                self._consecutive_backs = 0
+                return json.dumps({
+                    "action": "swipe_up",
+                    "why": "deterministic frontier: reveal controls below the fold",
+                })
+            self._taps[ident] = seen + 1
+            self._consecutive_backs = 0
             return json.dumps({
                 "action": "tap",
-                "label": el.get("label"),
-                "why": "deterministic frontier: first visit to this control",
+                "label": best.get("label"),
+                "why": ("deterministic frontier: first visit to this control"
+                        if seen == 0 else
+                        f"deterministic frontier: revisiting to go deeper "
+                        f"(visit {seen + 1})"),
             })
 
-        seen = self._scrolls.get(screen, 0)
-        if seen < self.SCROLLS_PER_SCREEN:
-            self._scrolls[screen] = seen + 1
+        # Nothing clickable here at all.
+        if self._scrolls.get(screen, 0) < self.SCROLLS_PER_SCREEN:
+            self._scrolls[screen] = self._scrolls.get(screen, 0) + 1
             return json.dumps({
                 "action": "swipe_up",
-                "why": "deterministic frontier: reveal controls below the fold",
+                "why": "deterministic frontier: no controls visible, scrolling",
             })
 
+        # Back is the last resort, and bounded: from a root activity it exits
+        # the app, and an unbounded run of them is the livelock above.
+        if self._consecutive_backs >= 2:
+            self._consecutive_backs = 0
+            return json.dumps({
+                "action": "swipe_down",
+                "why": ("deterministic frontier: two backs changed nothing, "
+                        "scrolling up instead of exiting the app again"),
+            })
+        self._consecutive_backs += 1
         return json.dumps({
             "action": "back",
             "why": "deterministic frontier: screen exhausted, backtracking",
@@ -219,6 +279,10 @@ class ResilientBackend:
         # the wait; an anonymous free tier offers no such guarantee.
         if not getattr(primary, "api_key", ""):
             primary.retries = min(getattr(primary, "retries", 5), 2)
+
+    def relaunched(self) -> None:
+        """Forward a relaunch notice to the fallback."""
+        self._null.relaunched()
 
     def observe(self, elements) -> None:
         """Keep the fallback's map current even while the primary is healthy.

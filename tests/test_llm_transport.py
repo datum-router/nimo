@@ -347,6 +347,11 @@ def test_deterministic_fallback_actually_explores():
     actions, 82 seconds of booted emulator, nothing visited beyond the
     launch activity. The verdict was honest but the evidence behind it was
     empty, which is its own kind of useless.
+
+    The invariant is FAIR COVERAGE, not visit-once: every control is tapped
+    before any is tapped twice. An earlier version of this test asserted
+    visit-once, which is what livelocked run #31 -- once the last control
+    was burned the explorer had nothing left but Back.
     """
     from nimo.llm import NullBackend
 
@@ -365,13 +370,19 @@ def test_deterministic_fallback_actually_explores():
         actions.append(json.loads(b.chat([])))
 
     taps = [a["label"] for a in actions if a["action"] == "tap"]
-    assert taps == ["New note", "Settings"], (
-        f"must tap each labelled clickable exactly once, got {taps}"
+    assert set(taps[:2]) == {"New note", "Settings"}, (
+        f"both clickables must be visited before either repeats, got {taps}"
     )
     assert "Heading" not in taps, "a non-clickable must not be tapped"
-    # Frontier exhausted: scroll for more, then backtrack. Never a stuck loop.
-    assert [a["action"] for a in actions[2:]] == [
-        "swipe_up", "swipe_up", "back", "back"]
+    assert "back" not in [a["action"] for a in actions], (
+        "a screen with reachable controls must never be backed out of"
+    )
+    # Fair round-robin: no control is three visits ahead of another.
+    from collections import Counter
+    counts = Counter(taps)
+    assert max(counts.values()) - min(counts.values()) <= 1, (
+        f"exploration is not fair across controls: {counts}"
+    )
 
 
 def test_fallback_remembers_controls_across_reflows():
@@ -586,4 +597,107 @@ def test_repro_loop_relaunches_when_a_step_escapes_the_app():
     assert "reset_foreground" not in src.split("def reproduce")[1][:4000], (
         "reset_foreground treats the launcher as an acceptable resting "
         "place, which is exactly the bug; the repro loop must relaunch"
+    )
+
+
+def test_explorer_does_not_livelock_on_a_small_app():
+    """CI run #31: 19 of 25 steps were Back, with 18 relaunches, 2 useful taps.
+
+    The first explorer burned each control after one tap and fell through to
+    Back when a screen offered nothing new. On a small app that is a dead
+    end: Back from the root activity EXITS to the launcher, the loop
+    relaunches, the root screen's controls are all burned, so it presses
+    Back again -- forever.
+
+    This simulates exactly that: one screen, two controls, and a Back that
+    bounces the run back to the same screen.
+    """
+    from nimo.llm import NullBackend
+
+    screen = [
+        {"label": "OK", "resource_id": "id/ok", "class": "Button",
+         "x": 10, "y": 100, "clickable": True},
+        {"label": "More options", "resource_id": "id/more", "class": "ImageButton",
+         "x": 20, "y": 50, "clickable": True},
+    ]
+    b = NullBackend()
+    actions_taken = []
+    for _ in range(25):
+        b.observe(screen)
+        a = json.loads(b.chat([]))
+        actions_taken.append(a["action"])
+        if a["action"] == "back":
+            # Back exits the app; the loop relaunches onto the same screen.
+            b.relaunched()
+
+    backs = actions_taken.count("back")
+    taps = actions_taken.count("tap")
+    assert backs <= 4, (
+        f"{backs}/25 steps were Back -- the livelock is back. Trail: "
+        f"{actions_taken}"
+    )
+    assert taps >= 15, (
+        f"only {taps}/25 steps did anything to the app. Trail: {actions_taken}"
+    )
+
+
+def test_exhausted_screen_deepens_instead_of_backing_out():
+    """Re-tapping a known control re-enters a sub-screen: real exploration.
+
+    An unvisited-only frontier empties; a least-visited one never does,
+    which is what removes the dead end.
+    """
+    from nimo.llm import NullBackend
+
+    screen = [{"label": "New note", "resource_id": "id/new", "class": "Button",
+               "x": 10, "y": 100, "clickable": True}]
+    b = NullBackend()
+    seen = []
+    for _ in range(6):
+        b.observe(screen)
+        seen.append(json.loads(b.chat([])))
+    kinds = [a["action"] for a in seen]
+    assert kinds[0] == "tap", "first visit must tap"
+    assert kinds.count("tap") >= 2, (
+        f"a single-control screen must be re-entered, not abandoned: {kinds}"
+    )
+    assert "back" not in kinds, (
+        f"a screen with a reachable control must never be backed out of: {kinds}"
+    )
+    deeper = [a for a in seen if a["action"] == "tap" and "deeper" in a["why"]]
+    assert deeper, "a revisit must say why it is revisiting"
+
+
+def test_consecutive_backs_are_capped():
+    """A screen with nothing clickable must not spend the budget exiting."""
+    from nimo.llm import NullBackend
+
+    b = NullBackend()
+    blank = [{"label": "Heading", "resource_id": "id/h", "class": "TextView",
+              "x": 1, "y": 1, "clickable": False}]
+    kinds = []
+    for _ in range(10):
+        b.observe(blank)
+        kinds.append(json.loads(b.chat([]))["action"])
+    # Never three Backs in a row.
+    for i in range(len(kinds) - 2):
+        assert kinds[i:i+3] != ["back", "back", "back"], (
+            f"three consecutive backs at step {i}: {kinds}"
+        )
+
+
+def test_relaunch_notice_reaches_the_fallback_through_the_wrapper():
+    from nimo.llm import ResilientBackend
+
+    b = ResilientBackend(LLMClient(base_url="https://x.invalid"))
+    assert hasattr(b, "relaunched")
+    b.relaunched()  # must not raise
+
+
+def test_repro_tells_the_backend_it_relaunched():
+    src = (REPO / "src" / "nimo" / "engine" / "repro.py").read_text(
+        encoding="utf-8")
+    assert 'getattr(llm, "relaunched"' in src, (
+        "the loop must tell the explorer the app state is fresh, or the "
+        "scroll budget stays spent and it livelocks on Back"
     )

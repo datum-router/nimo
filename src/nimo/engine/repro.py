@@ -226,6 +226,13 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
             try:
                 device.launch(package)
                 device.wait(2.0)
+                # The app's state is fresh, so screens previously judged
+                # exhausted deserve another look. Without this the explorer
+                # went straight back to Back and livelocked: run #31 spent
+                # 19 of 25 steps pressing Back with 18 relaunches.
+                notify = getattr(llm, "relaunched", None)
+                if callable(notify):
+                    notify()
             except device.DeviceError as exc:
                 history.append(f"step {i}: relaunch failed: {exc}")
 
