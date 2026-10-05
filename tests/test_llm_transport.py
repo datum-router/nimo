@@ -249,6 +249,97 @@ def test_degraded_run_is_labelled_not_silent():
     assert "backend_unavailable" in page, "the page must label an outage distinctly"
 
 
+def test_backend_degrades_mid_run_instead_of_aborting(monkeypatch):
+    """An outage after boot must not throw away the whole run.
+
+    Observed in CI on 2026-10-05: the preflight probe succeeded and the
+    pipeline's first real call seconds later returned 402 and stayed 402.
+    Booting is the expensive part, so finishing unguided beats returning
+    nothing.
+    """
+    from nimo.llm import ResilientBackend
+
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=None):
+        calls["n"] += 1
+        raise _http_error(402, "Payment Required")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    b = ResilientBackend(LLMClient(base_url="https://x.invalid", api_key="k",
+                                   retries=1, backoff=0))
+    assert b.degraded is False
+    first = json.loads(b.chat([{"role": "user", "content": "hi"}]))
+    assert first["action"] == "back", "must serve a usable action, not raise"
+    assert b.degraded is True
+    assert b.model == "null", "a degraded backend must report itself as null"
+
+    before = calls["n"]
+    for _ in range(5):
+        b.chat([{"role": "user", "content": "hi"}])
+    assert calls["n"] == before, "must stop hammering a dead backend"
+
+
+def test_degradation_is_recorded_process_wide(monkeypatch):
+    """repro builds its own backend; the report must still know.
+
+    `pipeline.main` and `repro.reproduce` each construct a backend, so an
+    outage hit inside repro is invisible to the pipeline's own instance.
+    """
+    import nimo.llm as llm_mod
+
+    monkeypatch.setitem(llm_mod._DEGRADED, "hit", False)
+    monkeypatch.setitem(llm_mod._DEGRADED, "reason", "")
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    def fake_urlopen(req, timeout=None):
+        raise _http_error(503, "Service Unavailable")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    assert llm_mod.degradation_occurred() is False
+    b = llm_mod.ResilientBackend(
+        LLMClient(base_url="https://x.invalid", retries=0, backoff=0))
+    b.chat([{"role": "user", "content": "hi"}])
+    assert llm_mod.degradation_occurred() is True
+    assert "503" in llm_mod.degradation_reason()
+
+
+def test_degraded_run_cannot_invent_a_bug():
+    """The honesty invariant must survive degradation.
+
+    A degraded run loses navigation, not integrity: the null backend only
+    ever emits an inert action, so no crash can originate from it.
+    """
+    from nimo.llm import NullBackend
+
+    out = json.loads(NullBackend().chat([{"role": "user", "content": "x"}]))
+    assert out == {"action": "back"}, "the null backend must stay inert"
+    assert "crash" not in json.dumps(out).lower()
+
+
+def test_fallback_can_be_disabled(monkeypatch):
+    """Some operators would rather retry than get an unguided run."""
+    from nimo.llm import ResilientBackend, get_backend
+
+    monkeypatch.setenv("NIMO_NO_FALLBACK", "1")
+    assert not isinstance(get_backend(), ResilientBackend)
+    monkeypatch.delenv("NIMO_NO_FALLBACK")
+    assert isinstance(get_backend(), ResilientBackend)
+
+
+def test_report_states_whether_guidance_survived():
+    """The report must be checked at the end, not at construction."""
+    src = (REPO / "src" / "nimo" / "engine" / "pipeline.py").read_text(encoding="utf-8")
+    assert 'report["ai_guidance"] = not degradation_occurred()' in src
+    sh = (REPO / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    assert "ai_guidance" in sh and "pipeline_report.json" in sh, (
+        "the harness must read the degradation the pipeline actually hit, "
+        "not only its own up-front probe"
+    )
+
+
 def test_null_backend_needs_no_network():
     b = get_backend("null")
     assert json.loads(b.chat([{"role": "user", "content": "hi"}]))["action"] == "back"
