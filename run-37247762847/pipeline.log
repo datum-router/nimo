@@ -1,0 +1,52 @@
+[nimo] preflight...
+[nimo] preflight warning: targets API 11: Android 14+ refuses to install apps targeting < 23 — use android_version 13 or lower
+[nimo] analyzing APK...
+[nimo] Notepad (bander.notepad v1.06)
+[nimo] map: 7 activities, 0 deep links, 1 permissions
+[nimo] device: emulator-5554
+[nimo] Path A: targeted bug reproduction
+[nimo] device: emulator-5554 | mode: repro
+[nimo] llm: https://text.pollinations.ai/openai / openai
+Traceback (most recent call last):
+  File "/home/runner/work/nimo/nimo/src/nimo/llm/client.py", line 90, in chat
+    with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 521, in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 630, in http_response
+    response = self.parent.error(
+               ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 559, in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 402: Payment Required
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/runner/.local/bin/nimo", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/runner/work/nimo/nimo/src/nimo/cli.py", line 163, in main
+    raise SystemExit(_delegate(_DELEGATES[cmd], rest))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/nimo/nimo/src/nimo/cli.py", line 40, in _delegate
+    main_fn()
+  File "/home/runner/work/nimo/nimo/src/nimo/engine/pipeline.py", line 110, in main
+    rep = reproduce(args.apk, meta.package, args.bug, repro_dir)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/nimo/nimo/src/nimo/engine/repro.py", line 97, in reproduce
+    action_raw = llm.chat(
+                 ^^^^^^^^^
+  File "/home/runner/work/nimo/nimo/src/nimo/llm/client.py", line 103, in chat
+    raise LLMUnavailable(self._advice(detail)) from exc
+nimo.llm.client.LLMUnavailable: LLM backend unavailable: https://text.pollinations.ai/openai (model openai) — HTTP 402 Payment Required: {}. Point nimo at a backend you control via NIMO_BASE_URL / NIMO_API_KEY / NIMO_MODEL, or set NIMO_BACKEND=null for a deterministic device-only run.
