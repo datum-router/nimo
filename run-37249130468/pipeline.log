@@ -1,0 +1,40 @@
+[nimo] preflight...
+[nimo] preflight warning: targets API 11: Android 14+ refuses to install apps targeting < 23 — use android_version 13 or lower
+[nimo] analyzing APK...
+[nimo] Notepad (bander.notepad v1.06)
+[nimo] map: 7 activities, 0 deep links, 1 permissions
+[nimo] device: emulator-5554
+[nimo] Path A: targeted bug reproduction
+[nimo] device: emulator-5554 | mode: repro
+[nimo] llm: https://text.pollinations.ai/openai / openai
+[nimo] LLM backend lost mid-run: LLM backend unavailable: https://text.pollinations.ai/openai (model openai) — HTTP 500 Internal Server Error: {"error":"ENOSPC: no space left on device, write","status":500,"deprecation_notice":"NOTE: The Pollinations legacy text API is being deprecated for authenticated users. Please migrate to https://enter. Point nimo at a backend you control via NIMO_BASE_URL / NIMO_API_KEY / NIMO_MODEL, or set NIMO_BACKEND=null for a deterministic device-only run.
+[nimo] continuing with deterministic exploration (no AI guidance). Crash detection is unaffected: the oracle needs no LLM.
+[nimo] step 1: back  ()
+[nimo] step 2: back  ()
+[nimo] step 3: back  ()
+[nimo] step 4: back  ()
+[nimo] step 5: back  ()
+[nimo] step 6: back  ()
+[nimo] step 7: back  ()
+[nimo] step 8: back  ()
+[nimo] step 9: back  ()
+[nimo] step 10: back  ()
+[nimo] step 11: back  ()
+[nimo] step 12: back  ()
+[nimo] step 13: back  ()
+[nimo] step 14: back  ()
+[nimo] step 15: back  ()
+[nimo] step 16: back  ()
+[nimo] step 17: back  ()
+[nimo] step 18: back  ()
+[nimo] step 19: back  ()
+[nimo] step 20: back  ()
+[nimo] step 21: back  ()
+[nimo] step 22: back  ()
+[nimo] step 23: back  ()
+[nimo] step 24: back  ()
+[nimo] step 25: back  ()
+[nimo] verdict: not_reproduced after 25 steps
+[nimo] report: out/repro/repro_report.json
+[nimo] Path A verdict: not_reproduced
+[nimo] pipeline report: out/pipeline_report.json (136.7s)
