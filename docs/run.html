@@ -924,15 +924,29 @@ function renderResult(s){
   v.textContent = t; v.className = "verdict " + c;
   pill.textContent = s.verdict.replace(/_/g," ");
   pill.className = "pill " + (s.verdict==="clean" ? "done" : s.verdict==="failed" ? "fail" : "run");
-  // donut
-  const pct = s.coverage_pct || 0, R = 60, C = 2*Math.PI*R;
-  $("donut").innerHTML =
-    `<circle cx="75" cy="75" r="${R}" fill="none" stroke="#D5D9D9" stroke-width="14"/>
+  // Coverage donut.
+  //
+  // `repro` mode runs no discovery crawl, so there is no coverage to report
+  // and the summary carries total: 0. Rendering that as a 0% ring read as a
+  // catastrophic result rather than "not measured in this mode" -- a worse
+  // lie than a missing number, since the run may have been a complete
+  // success. Zero-of-zero is therefore shown as not measured, while a real
+  // 0-of-7 still renders as 0%.
+  const measured = (s.total || 0) > 0;
+  const pct = measured ? (s.coverage_pct || 0) : 0, R = 60, C = 2*Math.PI*R;
+  $("donut").innerHTML = measured
+    ? `<circle cx="75" cy="75" r="${R}" fill="none" stroke="#D5D9D9" stroke-width="14"/>
      <circle cx="75" cy="75" r="${R}" fill="none" stroke="#FF9900" stroke-width="14"
        stroke-dasharray="${(pct/100*C).toFixed(1)} ${C.toFixed(1)}" stroke-linecap="round"
        transform="rotate(-90 75 75)"/>
-     <text x="75" y="82" text-anchor="middle" fill="#0F1111" font-size="24" font-weight="800">${pct}%</text>`;
-  $("r-cov").textContent = `${s.visited||0}/${s.total||0}`;
+     <text x="75" y="82" text-anchor="middle" fill="#0F1111" font-size="24" font-weight="800">${pct}%</text>`
+    : `<circle cx="75" cy="75" r="${R}" fill="none" stroke="#D5D9D9" stroke-width="14"
+       stroke-dasharray="4 8"/>
+     <text x="75" y="70" text-anchor="middle" fill="#565959" font-size="13" font-weight="700">not</text>
+     <text x="75" y="88" text-anchor="middle" fill="#565959" font-size="13" font-weight="700">measured</text>`;
+  $("r-cov").textContent = measured
+    ? `${s.visited||0}/${s.total||0}`
+    : "— (repro mode runs no crawl)";
   $("r-bugs").textContent = (s.bugs||[]).length;
   const secs = s.wall_seconds || 0;
   $("r-time").textContent = secs > 90 ? Math.round(secs/60)+" min" : Math.round(secs)+" s";
