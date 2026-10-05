@@ -235,3 +235,36 @@ def test_zero_coverage_is_distinguished_from_unmeasured_coverage():
     assert "repro mode runs no crawl" in html, (
         "the user must be told WHY there is no number"
     )
+
+
+def test_footer_is_a_full_width_band_outside_the_content_wrapper():
+    """The footer sat INSIDE div.wrap, so its navy band was clipped to the
+    content column and rendered as a stray bar mid-page."""
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    body = html.split("<body>", 1)[1]
+    footer_at = body.index("<footer>")
+    # Everything before the footer must have closed the content wrapper.
+    before = body[:footer_at]
+    assert before.count("<div") <= before.count("</div"), (
+        "the footer is still nested inside an unclosed container"
+    )
+    assert "footer .wrap{" in html, "the footer needs its own inner wrap"
+
+
+def test_progress_uses_step_count_when_there_are_no_screens():
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "byScreens" in html, (
+        "repro mode reports steps, not screens; a screens-only bar sat at "
+        "zero for the default mode"
+    )
+    assert "steps driven on the device" in html
+
+
+def test_device_panel_says_what_is_actually_on_screen():
+    """Before launch the frame is Android's launcher, not the app.
+
+    Labelling it "live screen" made a booting device indistinguishable from
+    a stuck one -- the operator reported it as "shows nothing".
+    """
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "this is the launcher, not your app yet" in html

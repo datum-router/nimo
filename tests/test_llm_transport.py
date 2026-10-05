@@ -500,3 +500,90 @@ def test_run_pipeline_propagates_the_pipeline_exit_code():
         "run_pipeline.sh must end by propagating the pipeline's exit code; "
         f"last line is {body[-1]!r}"
     )
+
+
+def test_explorer_refuses_controls_that_leave_the_app():
+    """CI run #29: 22 of 25 steps tested the wrong application.
+
+    Step 2 tapped "Notepad, Navigate home" -- the ActionBar up affordance --
+    which dropped the run onto the launcher. Steps 10-25 then drove the
+    Google search widget, the Gallery and the Camera, and the run still
+    reported `not_reproduced` for Notepad: a verdict about an app it had
+    never opened.
+    """
+    from nimo.llm import NullBackend
+
+    b = NullBackend()
+    b.observe([
+        {"label": "Notepad, Navigate home", "resource_id": "", "class": "ImageButton",
+         "x": 10, "y": 10, "clickable": True},
+        {"label": "Navigate up", "resource_id": "", "class": "ImageButton",
+         "x": 12, "y": 10, "clickable": True},
+        {"label": "App info", "resource_id": "", "class": "TextView",
+         "x": 14, "y": 10, "clickable": True},
+        {"label": "Switch to Camera", "resource_id": "", "class": "Button",
+         "x": 16, "y": 10, "clickable": True},
+        {"label": "New note", "resource_id": "id/new", "class": "Button",
+         "x": 20, "y": 40, "clickable": True},
+    ])
+    first = json.loads(b.chat([]))
+    assert first["action"] == "tap" and first["label"] == "New note", (
+        f"must prefer the in-app control, chose {first}"
+    )
+    # None of the exits may ever be chosen, however many steps are taken.
+    chosen = []
+    for _ in range(6):
+        a = json.loads(b.chat([]))
+        if a["action"] == "tap":
+            chosen.append(a["label"])
+    for exit_label in ("Notepad, Navigate home", "Navigate up", "App info",
+                       "Switch to Camera"):
+        assert exit_label not in chosen, f"tapped an app exit: {exit_label}"
+
+
+def test_an_apps_own_home_tab_is_still_reachable():
+    """The exit list must match whole labels, not substrings of them.
+
+    An app with its own "Home" tab, or a "Home address" field, must stay
+    explorable -- otherwise the fix for escaping the app would blind the
+    explorer to legitimate in-app navigation.
+    """
+    from nimo.llm import NullBackend
+
+    b = NullBackend()
+    b.observe([
+        {"label": "Home address", "resource_id": "id/addr", "class": "EditText",
+         "x": 1, "y": 2, "clickable": True},
+        {"label": "Homepage", "resource_id": "id/hp", "class": "Button",
+         "x": 3, "y": 4, "clickable": True},
+    ])
+    taps = []
+    for _ in range(3):
+        a = json.loads(b.chat([]))
+        if a["action"] == "tap":
+            taps.append(a["label"])
+    assert sorted(taps) == ["Home address", "Homepage"], (
+        f"in-app controls were wrongly treated as exits: {taps}"
+    )
+
+
+def test_repro_loop_relaunches_when_a_step_escapes_the_app():
+    """The label list is the cheap half; the package check is the guarantee.
+
+    No blocklist can be exhaustive, so the loop must verify the foreground
+    package after every step and put the app back when it has gone.
+    """
+    src = (REPO / "src" / "nimo" / "engine" / "repro.py").read_text(
+        encoding="utf-8")
+    assert "current_package()" in src, (
+        "the loop must check what is actually in the foreground"
+    )
+    assert "off_app_steps" in src, (
+        "excursions must be recorded, not silently corrected: a verdict "
+        "reached after escaping the app repeatedly is weak evidence"
+    )
+    assert "device.launch(package)" in src
+    assert "reset_foreground" not in src.split("def reproduce")[1][:4000], (
+        "reset_foreground treats the launcher as an acceptable resting "
+        "place, which is exactly the bug; the repro loop must relaunch"
+    )

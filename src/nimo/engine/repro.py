@@ -25,7 +25,7 @@ import os
 import time
 from datetime import datetime, timezone
 
-from . import device, gestures
+from . import actions, device, gestures
 from ..llm import get_backend
 from .prompts import (DISCOVER_SYSTEM_PROMPT, SYSTEM_PROMPT,
                       render_discover_step, render_step)
@@ -75,6 +75,12 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
     llm = get_backend()
     print(f"[nimo] llm: {llm.base_url} / {llm.model}")
 
+    # Live action feed, same file shape the crawler writes, so the hosted
+    # run page renders repro runs exactly as it renders discovery runs.
+    feed = actions.ActionFeed(out_dir)
+    feed.record("launch", label=package,
+                activity=device.current_activity() or "")
+
     report_text = ""
     if not discover:
         with open(bug_report) as f:
@@ -83,6 +89,10 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
     history: list[str] = []
     steps: list[dict] = []
     bugs_found: list[dict] = []
+    # Steps that navigated out of the app under test. Recorded rather than
+    # merely corrected: a run that spent most of its budget escaping the app
+    # produced weak evidence, and the report must be able to say so.
+    off_app_steps: list[dict] = []
     verdict = "not_reproduced"
     crash_log: str | None = None
 
@@ -125,19 +135,27 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
         desc = f"{kind} {action.get('label', '')} {action.get('text', '')}".strip()
         print(f"[nimo] step {i+1}: {desc}  ({why})")
 
+        # Coordinates of whatever this step actually touched, for the live
+        # view's tap markers. Captured during execution rather than guessed
+        # afterwards, because the element list is re-dumped every step.
+        touched: tuple[int, int] | None = None
+
         try:
             if kind == "tap":
                 xy = _find_xy(elements, action.get("label", ""))
                 if xy:
                     device.tap(*xy)
+                    touched = xy
             elif kind == "long_press":
                 xy = _find_xy(elements, action.get("label", ""))
                 if xy:
                     gestures.long_press(xy[0], xy[1], ms=800)
+                    touched = xy
             elif kind == "type":
                 xy = _find_xy(elements, action.get("label", ""))
                 if xy:
                     device.tap(*xy)
+                    touched = xy
                 device.wait(0.5)
                 device.input_text(action.get("text", ""))
             elif kind == "swipe_up":
@@ -160,6 +178,56 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
         device.wait(1.2)
         history.append(f"step {i}: {desc} ({why})")
         steps.append({"n": i + 1, "action": action, "why": why})
+
+        # Feed the live view. The crawler has always written this file, so
+        # the page's app map, action chips and tap markers were populated in
+        # discover/pipeline mode and completely empty in repro mode -- which
+        # is what the operator saw as "starting..." and "no screens yet"
+        # beside a log that was visibly busy. Same feed, so the frontend
+        # needs no mode-specific branch.
+        try:
+            feed_kind = {"tap": "tap", "long_press": "tap", "type": "type",
+                         "swipe_up": "swipe", "swipe_down": "swipe",
+                         "back": "back"}.get(kind or "", "tap")
+            feed.record(feed_kind,
+                        x=touched[0] if touched else None,
+                        y=touched[1] if touched else None,
+                        label=str(action.get("label") or kind or ""),
+                        activity=device.current_activity() or "")
+        except device.DeviceError:
+            pass  # the live feed is cosmetic; never fail a run for it
+
+        # Stay inside the app under test.
+        #
+        # Observed in CI run #29: step 2 tapped "Notepad, Navigate home" --
+        # the ActionBar up affordance -- which dropped the run onto the
+        # launcher. Steps 10-25 then explored the Google search widget, the
+        # Gallery and the Camera, and the run still reported
+        # `not_reproduced` for Notepad. That verdict was about an app the
+        # run had never opened, which is exactly the class of false
+        # statement this product exists to prevent.
+        #
+        # `device.reset_foreground` is not the right tool here: it treats the
+        # launcher as an acceptable resting place, because explicit `am
+        # start` works from home and the crawler relaunches by intent
+        # anyway. A repro loop has no such next step -- it drives the UI it
+        # is looking at -- so it must put the app back itself.
+        try:
+            cur_pkg = device.current_package()
+        except device.DeviceError:
+            cur_pkg = None
+        if cur_pkg and cur_pkg != package:
+            off_app_steps.append({"step": i + 1, "package": cur_pkg,
+                                  "action": desc})
+            print(f"[nimo] step {i+1} left the app (now {cur_pkg}) — relaunching "
+                  f"{package}", flush=True)
+            history.append(
+                f"step {i}: left the app into {cur_pkg}, relaunched {package}")
+            try:
+                device.launch(package)
+                device.wait(2.0)
+            except device.DeviceError as exc:
+                history.append(f"step {i}: relaunch failed: {exc}")
 
         shot = os.path.join(shots, f"step_{i+1:02d}.png")
         try:
@@ -216,6 +284,12 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
                     else verdict),
         "bugs_found": bugs_found if discover else None,
         "steps_taken": len(steps),
+        # How much of the step budget was spent outside the app under test.
+        # A `not_reproduced` reached after escaping the app repeatedly is
+        # weak evidence, and the consumer of this report must be able to see
+        # that rather than infer it from the trail.
+        "off_app_steps": off_app_steps,
+        "steps_in_app": max(0, len(steps) - len(off_app_steps)),
         "history": history,
         "crash_log": crash_log,
     }
