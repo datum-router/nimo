@@ -511,7 +511,18 @@ async function dispatch(){
 function startTracking(dispatchedAt, meta){
   $("config").style.display = "none";
   $("tracker").style.display = "block";
-  $("t-meta").textContent = `Android ${meta.version} · ${meta.arch} · ${meta.mode} · dispatched ${new Date(dispatchedAt).toLocaleTimeString()}`;
+  // Base label plus a live elapsed clock. A device run is ~2-4 min end to end;
+  // without a ticking number the tracker reads as hung between poll ticks,
+  // which is the single biggest driver of "the test is slow" reports.
+  const baseMeta = `Android ${meta.version} · ${meta.arch} · ${meta.mode} · dispatched ${new Date(dispatchedAt).toLocaleTimeString()}`;
+  const startedMs = Date.now();
+  $("t-meta").textContent = baseMeta;
+  const tick = () => {
+    const s = Math.floor((Date.now() - startedMs) / 1000);
+    const mm = Math.floor(s / 60), ss = String(s % 60).padStart(2, "0");
+    $("t-meta").textContent = `${baseMeta} · elapsed ${mm}:${ss}`;
+  };
+  pollTimers.push(setInterval(tick, 1000)); tick();
   const since = new Date(new Date(dispatchedAt).getTime() - 60000).toISOString();
   const findRun = async () => {
     try {
@@ -522,7 +533,9 @@ function startTracking(dispatchedAt, meta){
       if (run) { runId = run.id; clearInterval(t1); trackRun(); }
     } catch(e) { /* retry */ }
   };
-  const t1 = setInterval(findRun, 15000); pollTimers.push(t1); findRun();
+  // 4s, not 15s: the run appears on the API within a second or two of
+  // dispatch, and a slow first attach makes the whole run feel slow.
+  const t1 = setInterval(findRun, 4000); pollTimers.push(t1); findRun();
   setTimeout(() => { if (!runId) { clearInterval(t1); $("t-phase").textContent = "No run appeared after 10 minutes — check the Actions tab."; } }, 600000);
 }
 
@@ -626,7 +639,13 @@ function trackRun(){
     img.onerror = () => { img.style.display = "none"; $("noshot").style.display = "flex"; };
     img.src = `${RAW}/run-${runId}/latest.png?t=${Date.now()}`;
   };
-  pollTimers.push(setInterval(jobs, 60000), setInterval(prog, 20000));
+  // A whole device run lasts ~2-4 min, so a 60s job poll meant the step list
+  // lagged up to a minute behind reality and completion was noticed late.
+  // 10s/6s keeps us far inside the authenticated API budget (5000 req/hr:
+  // ~360 job calls/hr) while the step list tracks the run in near real time.
+  // progress.json is republished by the runner every 20s, so 6s polling
+  // costs nothing extra and picks each push up almost immediately.
+  pollTimers.push(setInterval(jobs, 10000), setInterval(prog, 6000));
   jobs(); prog();
 }
 
@@ -650,13 +669,17 @@ async function finish(conclusion){
   pill.textContent = conclusion === "success" ? "done" : "finished";
   pill.className = "pill " + (conclusion === "success" ? "done" : "fail");
   // final summary (may take a few seconds to land on the branch)
+  // The runner pushes summary.json right before the job ends, so it is
+  // normally already there. 15 tries at 3s (~45s) replaces 10 tries at 15s
+  // (~150s), which used to leave a finished run showing "wrapping up" for
+  // over two minutes -- longer than the run itself.
   let s = null;
-  for (let i = 0; i < 10 && !s; i++) {
+  for (let i = 0; i < 15 && !s; i++) {
     try {
       const r = await fetch(`${RAW}/run-${runId}/summary.json?t=${Date.now()}`);
       if (r.ok) s = await r.json();
     } catch(e) {}
-    if (!s) await new Promise(r => setTimeout(r, 15000));
+    if (!s) await new Promise(r => setTimeout(r, 3000));
   }
   $("tracker").style.display = "none";
   $("result").style.display = "block";
