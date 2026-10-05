@@ -1,0 +1,74 @@
+[00:00] [nimo] preflight...
+[00:00] [nimo] preflight warning: targets API 11: Android 14+ refuses to install apps targeting < 23 — use android_version 13 or lower
+[00:00] [nimo] analyzing APK...
+[00:00] [nimo] Notepad (bander.notepad v1.06)
+[00:00] [nimo] map: 7 activities, 0 deep links, 1 permissions
+[00:00] [nimo] device: emulator-5554
+[00:00] [nimo] Path B: systematic discovery crawl
+[00:00] [nimo] intent sweep: firing enumerated intent targets
+[01:55] [nimo] sweep done: 2 activities reached via intents, 3 labeled unreachable
+[01:55] [nimo] autofill: no email/password in auth config — autofill not configured
+[01:57] [crawl] visiting bander.notepad.NoteList (1/7)
+[02:29] [crawl] bander.notepad.NoteEdit redirected to com.android.launcher3/.uioverrides.QuickstepLauncher — not counted
+[02:35] [crawl] bander.notepad.TitleEdit redirected to com.android.launcher3/.uioverrides.QuickstepLauncher — not counted
+[02:37] [crawl] direct launch failed for bander.notepad.NoteExport: adb shell am start -n bander.notepad/.NoteExport failed: Exception occurred while executing 'start':
+[02:37] java.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=bander.notepad/.NoteExport } from null (pid=4446, uid=2000) not exported from uid 10126
+[02:37] 	at com.android.server.wm.ActivityTaskSupervisor.checkStartAnyActivityPermission(ActivityTaskSupervisor.java:1110)
+[02:37] 	at com.android.server.wm.ActivityStarter.executeRequest(ActivityStarter.java:1024)
+[02:37] 	at com.android.server.wm.ActivityStarter.execute(ActivityStarter.java:713)
+[02:37] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1292)
+[02:37] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1233)
+[02:37] 	at com.android.server.am.ActivityManagerService.startActivityAsUserWithFeature(ActivityManagerService.java:3139)
+[02:37] 	at com.android.server.am.ActivityManagerShellCommand.runStartActivity(ActivityManagerShellCommand.java:603)
+[02:37] 	at com.android.server.am.ActivityManagerShellCommand.onCommand(ActivityManagerShellCommand.java:208)
+[02:37] 	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+[02:37] 	at android.os.ShellCommand.exec(ShellCommand.java:38)
+[02:37] 	at com.android.server.am.ActivityManagerService.onShellCommand(ActivityManagerService.java:9197)
+[02:37] 	at android.os.Binder.shellCommand(Binder.java:1049)
+[02:37] 	at android.os.Binder.onTransact(Binder.java:877)
+[02:37] 	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:4731)
+[02:37] 	at com.android.server.am.ActivityManagerService.onTransact(ActivityManagerService.java:2630)
+[02:37] 	at android.os.Binder.execTransactInternal(Binder.java:1285)
+[02:37] 	at android.os.Binder.execTransact(Binder.java:1244)
+[02:37] [crawl] direct launch failed for bander.notepad.NoteImport: adb shell am start -n bander.notepad/.NoteImport failed: Exception occurred while executing 'start':
+[02:37] java.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=bander.notepad/.NoteImport } from null (pid=4461, uid=2000) not exported from uid 10126
+[02:37] 	at com.android.server.wm.ActivityTaskSupervisor.checkStartAnyActivityPermission(ActivityTaskSupervisor.java:1110)
+[02:37] 	at com.android.server.wm.ActivityStarter.executeRequest(ActivityStarter.java:1024)
+[02:37] 	at com.android.server.wm.ActivityStarter.execute(ActivityStarter.java:713)
+[02:37] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1292)
+[02:37] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1233)
+[02:37] 	at com.android.server.am.ActivityManagerService.startActivityAsUserWithFeature(ActivityManagerService.java:3139)
+[02:37] 	at com.android.server.am.ActivityManagerShellCommand.runStartActivity(ActivityManagerShellCommand.java:603)
+[02:37] 	at com.android.server.am.ActivityManagerShellCommand.onCommand(ActivityManagerShellCommand.java:208)
+[02:37] 	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+[02:37] 	at android.os.ShellCommand.exec(ShellCommand.java:38)
+[02:37] 	at com.android.server.am.ActivityManagerService.onShellCommand(ActivityManagerService.java:9197)
+[02:37] 	at android.os.Binder.shellCommand(Binder.java:1049)
+[02:37] 	at android.os.Binder.onTransact(Binder.java:877)
+[02:37] 	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:4731)
+[02:37] 	at com.android.server.am.ActivityManagerService.onTransact(ActivityManagerService.java:2630)
+[02:37] 	at android.os.Binder.execTransactInternal(Binder.java:1285)
+[02:37] 	at android.os.Binder.execTransact(Binder.java:1244)
+[02:37] [crawl] direct launch failed for bander.notepad.Preferences: adb shell am start -n bander.notepad/.Preferences failed: Exception occurred while executing 'start':
+[02:37] java.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=bander.notepad/.Preferences } from null (pid=4476, uid=2000) not exported from uid 10126
+[02:37] 	at com.android.server.wm.ActivityTaskSupervisor.checkStartAnyActivityPermission(ActivityTaskSupervisor.java:1110)
+[02:37] 	at com.android.server.wm.ActivityStarter.executeRequest(ActivityStarter.java:1024)
+[02:37] 	at com.android.server.wm.ActivityStarter.execute(ActivityStarter.java:713)
+[02:37] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1292)
+[02:37] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1233)
+[02:37] 	at com.android.server.am.ActivityManagerService.startActivityAsUserWithFeature(ActivityManagerService.java:3139)
+[02:37] 	at com.android.server.am.ActivityManagerShellCommand.runStartActivity(ActivityManagerShellCommand.java:603)
+[02:37] 	at com.android.server.am.ActivityManagerShellCommand.onCommand(ActivityManagerShellCommand.java:208)
+[02:37] 	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+[02:37] 	at android.os.ShellCommand.exec(ShellCommand.java:38)
+[02:37] 	at com.android.server.am.ActivityManagerService.onShellCommand(ActivityManagerService.java:9197)
+[02:37] 	at android.os.Binder.shellCommand(Binder.java:1049)
+[02:37] 	at android.os.Binder.onTransact(Binder.java:877)
+[02:37] 	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:4731)
+[02:37] 	at com.android.server.am.ActivityManagerService.onTransact(ActivityManagerService.java:2630)
+[02:37] 	at android.os.Binder.execTransactInternal(Binder.java:1285)
+[02:37] 	at android.os.Binder.execTransact(Binder.java:1244)
+[02:41] [crawl] bander.notepad.NoteSearchResults redirected to com.android.launcher3/.uioverrides.QuickstepLauncher — not counted
+[02:46] [crawl] visiting bander.notepad.NoteList (1/7)
+[03:04] [nimo] crawl done: 1/7 activities (14.3%), 4 screens, 0 unique bugs, 9 actions
+[03:04] [nimo] pipeline report: out/pipeline_report.json (184.1s)
