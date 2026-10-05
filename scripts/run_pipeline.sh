@@ -95,6 +95,36 @@ EOF
 ) &
 PUSHER=$!
 
+# ---- LLM preflight ------------------------------------------------
+# The free tier is bimodal: it serves fine for stretches, then returns
+# 402/500 for stretches (measured 2026-10-05: twelve consecutive successes,
+# then five consecutive ENOSPC 500s minutes later). A sustained outage used
+# to abort the run AFTER the emulator had booted -- throwing away the slow,
+# expensive part and returning nothing at all.
+#
+# So probe once, cheaply, before committing to the long run. If the backend
+# is down, explore deterministically rather than not at all.
+#
+# This cannot fabricate a finding. A `reproduced` verdict comes only from the
+# oracle observing a real FATAL EXCEPTION, which needs no LLM at all, so
+# degraded mode loses intelligent navigation -- not honesty. It is labelled
+# in the log, in summary.json and on the results page.
+DEGRADED=0
+if [ "${NIMO_BACKEND:-}" != "null" ]; then
+  if python3 -c "
+from nimo.llm.client import LLMClient
+LLMClient(retries=1, backoff=1.0).chat([{'role':'user','content':'ok'}])
+" >/dev/null 2>&1; then
+    echo "[nimo] llm preflight: ok"
+  else
+    echo "[nimo] llm preflight: FAILED — backend unreachable."
+    echo "[nimo] falling back to deterministic exploration (no AI guidance)."
+    echo "[nimo] crash detection is unaffected: the oracle needs no LLM."
+    export NIMO_BACKEND=null
+    DEGRADED=1
+  fi
+fi
+
 # Watchdog: a wedged adb (sick emulator) must never burn the whole
 # 6-hour job timeout. Kill the pipeline past the user's budget plus
 # slack; the honest "failed" fallback below still reports the outcome.
@@ -116,15 +146,54 @@ if [ -f out/pipeline_report.json ]; then
     --arch "$AARCH" \
     --runtime "$RUNTIME"
 else
-  RUNTIME="$RUNTIME" AVER="$AVER" AARCH="$AARCH" python3 <<'EOF'
+  # Exit 3 means the LLM backend was unreachable (see nimo.cli). That is an
+  # infrastructure outage, not a test result, and the customer note must say
+  # so -- "no report" would read as though their app passed or broke.
+  STATUS="$STATUS" RUNTIME="$RUNTIME" AVER="$AVER" AARCH="$AARCH" python3 <<'EOF'
 import json, os
-json.dump({"verdict": "failed",
-           "customer_note": "The test run did not produce a report. Check the Actions log.",
+status = int(os.environ.get("STATUS") or 0)
+if status == 3:
+    verdict = "backend_unavailable"
+    note = ("The AI backend was unreachable, so no verdict could be produced. "
+            "This is an outage on the model provider, not a result for your "
+            "app. Retry, or configure a provider key (NIMO_API_KEY).")
+elif status == 124:
+    verdict = "failed"
+    note = ("The run exceeded its time budget and was stopped. "
+            "Check the Actions log.")
+else:
+    verdict = "failed"
+    note = "The test run did not produce a report. Check the Actions log."
+json.dump({"verdict": verdict,
+           "customer_note": note,
+           "exit_code": status,
            "device": {"android_version": os.environ["AVER"],
                       "arch": os.environ["AARCH"],
                       "runtime": os.environ["RUNTIME"]},
            "bugs": [], "unreachable": [], "coverage_pct": 0,
            "visited": 0, "total": 0}, open("summary.json", "w"))
+EOF
+fi
+
+# Label a degraded run everywhere it surfaces. A customer reading "no bugs
+# found" deserves to know the exploration was random rather than guided --
+# an unlabelled degraded run is a quieter version of the false green.
+if [ "$DEGRADED" -eq 1 ] && [ -f summary.json ]; then
+  python3 <<'EOF'
+import json
+try:
+    s = json.load(open("summary.json"))
+except Exception:
+    s = {}
+s["ai_guidance"] = False
+s["degraded"] = True
+note = ("NOTE: the AI backend was unreachable, so the app was explored "
+        "deterministically rather than intelligently. Crash detection was "
+        "unaffected -- any bug listed here is a real observed crash -- but "
+        "coverage is lower than a guided run and 'no bugs found' is weaker "
+        "evidence than usual. Retry later, or configure a provider key.")
+s["customer_note"] = (note + " " + (s.get("customer_note") or "")).strip()
+json.dump(s, open("summary.json", "w"))
 EOF
 fi
 timeout 30 adb -s "$ANDROID_SERIAL" exec-out screencap -p > final.png 2>/dev/null || true

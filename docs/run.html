@@ -699,7 +699,10 @@ function renderResult(s){
   const v = $("r-verdict"), pill = $("r-pill");
   const titles = { bugs_found:["Bugs found", "v-bad"], clean:["Clean — no crashes","v-good"],
     inconclusive:["Inconclusive — nothing tested","v-warn"],
-    reproduced:["Bug reproduced","v-bad"], not_reproduced:["Not reproduced","v-warn"], failed:["Run failed","v-bad"] };
+    reproduced:["Bug reproduced","v-bad"], not_reproduced:["Not reproduced","v-warn"], failed:["Run failed","v-bad"],
+    // An outage is not a result for the app. Saying "Run failed" invites the
+    // reader to conclude something about their own code.
+    backend_unavailable:["AI backend unavailable — no verdict","v-warn"] };
   const [t, c] = titles[s.verdict] || [s.verdict, "v-warn"];
   v.textContent = t; v.className = "verdict " + c;
   pill.textContent = s.verdict.replace(/_/g," ");
@@ -730,6 +733,13 @@ function renderResult(s){
     tiles.appendChild(d);
   }
   $("r-note").textContent = s.customer_note || "";
+  // A degraded run explored randomly, not intelligently. "No bugs found" is
+  // much weaker evidence in that mode, so say so on the verdict itself
+  // rather than only in the note body.
+  if (s.ai_guidance === false || s.degraded === true) {
+    v.textContent = t + " · unguided (AI backend was down)";
+    v.className = "verdict v-warn";
+  }
 }
 </script>
 </body>
