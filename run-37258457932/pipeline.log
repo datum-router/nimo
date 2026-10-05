@@ -1,0 +1,79 @@
+[00:00] [nimo] preflight...
+[00:00] [nimo] analyzing APK...
+[00:00] [nimo] AsciiCam (com.dozingcatsoftware.asciicam v1.2.3)
+[00:00] [nimo] map: 5 activities, 0 deep links, 3 permissions
+[00:00] [nimo] device: emulator-5554
+[00:00] [nimo] Path A: targeted bug reproduction
+[00:01] [nimo] device: emulator-5554 | mode: repro
+[00:04] [nimo] llm: https://text.pollinations.ai/openai / openai
+[00:19] [nimo] LLM backend lost mid-run: LLM backend unavailable: https://text.pollinations.ai/openai (model openai) — HTTP 402 Payment Required: {}. Point nimo at a backend you control via NIMO_BASE_URL / NIMO_API_KEY / NIMO_MODEL, or set NIMO_BACKEND=null for a deterministic device-only run.
+[00:19] [nimo] continuing with deterministic exploration (no AI guidance). Crash detection is unaffected: the oracle needs no LLM.
+[00:19] [nimo] step 1: tap OK  (deterministic frontier: first visit to this control)
+[00:22] [nimo] step 2: tap shutterButton  (deterministic frontier: first visit to this control)
+[00:23] [nimo] step 2 left the app (now com.android.launcher3) — relaunching com.dozingcatsoftware.asciicam
+[00:28] [nimo] step 3: tap cycleColorButton  (deterministic frontier: first visit to this control)
+[00:31] [nimo] step 4: tap settingsButton  (deterministic frontier: first visit to this control)
+[00:35] [nimo] step 5: swipe_up  (deterministic frontier: no controls visible, scrolling)
+[00:38] [nimo] step 6: swipe_up  (deterministic frontier: no controls visible, scrolling)
+[00:42] [nimo] step 7: back  (deterministic frontier: screen exhausted, backtracking)
+[00:46] [nimo] step 8: tap galleryButton  (deterministic frontier: first visit to this control)
+[00:47] [nimo] step 8 left the app (now com.android.launcher3) — relaunching com.dozingcatsoftware.asciicam
+[00:51] [nimo] step 9: swipe_up  (deterministic frontier: no controls visible, scrolling)
+[00:55] [nimo] step 10: swipe_up  (deterministic frontier: no controls visible, scrolling)
+[00:59] [nimo] step 11: back  (deterministic frontier: screen exhausted, backtracking)
+[01:00] [nimo] step 11 left the app (now com.android.launcher3) — relaunching com.dozingcatsoftware.asciicam
+[01:04] [nimo] step 12: tap convertPictureButton  (deterministic frontier: first visit to this control)
+[01:06] [nimo] step 12 left the app (now com.android.gallery3d) — relaunching com.dozingcatsoftware.asciicam
+[01:10] [nimo] step 13: tap Select photo  (deterministic frontier: first visit to this control)
+[01:11] [nimo] step 13 left the app (now com.android.gallery3d) — relaunching com.dozingcatsoftware.asciicam
+[01:16] [nimo] step 14: tap CANCEL  (deterministic frontier: first visit to this control)
+[01:19] [nimo] step 15: tap helpButton  (deterministic frontier: first visit to this control)
+[01:23] [nimo] step 16: swipe_up  (deterministic frontier: no controls visible, scrolling)
+[01:26] [nimo] step 17: swipe_up  (deterministic frontier: no controls visible, scrolling)
+[01:30] [nimo] step 18: back  (deterministic frontier: screen exhausted, backtracking)
+[01:34] [nimo] step 19: swipe_up  (deterministic frontier: reveal controls below the fold)
+[01:37] [nimo] step 20: swipe_up  (deterministic frontier: reveal controls below the fold)
+[01:41] [nimo] step 21: tap shutterButton  (deterministic frontier: revisiting to go deeper (visit 2))
+[01:42] [nimo] step 21 left the app (now com.android.launcher3) — relaunching com.dozingcatsoftware.asciicam
+[01:47] [nimo] step 22: swipe_up  (deterministic frontier: reveal controls below the fold)
+[01:51] [nimo] step 23: swipe_up  (deterministic frontier: reveal controls below the fold)
+[01:55] [nimo] step 24: tap cycleColorButton  (deterministic frontier: revisiting to go deeper (visit 2))
+[01:58] [nimo] step 25: tap settingsButton  (deterministic frontier: revisiting to go deeper (visit 2))
+[02:00] [nimo] verdict: not_reproduced after 25 steps
+[02:00] [nimo] report: out/repro/repro_report.json
+[02:00] [nimo] Path A verdict: not_reproduced
+[02:00] [nimo] Path B: systematic discovery crawl
+[02:00] [nimo] intent sweep: firing enumerated intent targets
+[02:07] [nimo] sweep done: 1 activities reached via intents, 0 labeled unreachable
+[02:07] [nimo] autofill: no email/password in auth config — autofill not configured
+[02:10] [crawl] visiting com.dozingcatsoftware.asciicam.AsciiCamActivity (1/5)
+[02:25] Traceback (most recent call last):
+[02:25]   File "/home/runner/.local/bin/nimo", line 8, in <module>
+[02:25]     sys.exit(main())
+[02:25]              ^^^^^^
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/cli.py", line 171, in main
+[02:25]     raise SystemExit(_delegate(_DELEGATES[cmd], rest))
+[02:25]                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/cli.py", line 47, in _delegate
+[02:25]     main_fn()
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/engine/pipeline.py", line 172, in main
+[02:25]     result = explore(meta, cfg, llm, crawl_dir, budget,
+[02:25]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/engine/crawler.py", line 612, in explore
+[02:25]     return crawler.run()
+[02:25]            ^^^^^^^^^^^^^
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/engine/crawler.py", line 233, in run
+[02:25]     self._visit_activity(activity)
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/engine/crawler.py", line 396, in _visit_activity
+[02:25]     self._explore_screen(activity, elements)
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/engine/crawler.py", line 573, in _explore_screen
+[02:25]     self._explore_screen(new_act, new_els)
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/engine/crawler.py", line 580, in _explore_screen
+[02:25]     device.start_activity(apkmeta.component(
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/engine/device.py", line 205, in start_activity
+[02:25]     out = _run("shell", "am", "start", "-n", component)
+[02:25]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[02:25]   File "/home/runner/work/nimo/nimo/src/nimo/engine/device.py", line 33, in _run
+[02:25]     raise DeviceError(f"adb {' '.join(args)} failed: {p.stderr.strip()}")
+[02:25] nimo.engine.device.DeviceError: adb shell am start -n com.dozingcatsoftware.asciicam/./.AsciiCamActivity failed: Error type 3
+[02:25] Error: Activity class {com.dozingcatsoftware.asciicam/com.dozingcatsoftware.asciicam./.AsciiCamActivity} does not exist.

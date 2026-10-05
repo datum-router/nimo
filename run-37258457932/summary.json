@@ -1,0 +1,18 @@
+{
+  "verdict": "failed",
+  "customer_note": "The test run did not produce a report. Check the Actions log.",
+  "exit_code": 1,
+  "device": {
+    "android_version": "16.0.0",
+    "arch": "amd64",
+    "runtime": "emulator"
+  },
+  "bugs": [],
+  "unreachable": [],
+  "coverage_pct": 0,
+  "visited": 0,
+  "total": 0,
+  "actor": "khanaldd",
+  "run_id": "37258457932",
+  "run_url": "https://github.com/datum-router/nimo/actions/runs/37258457932"
+}
