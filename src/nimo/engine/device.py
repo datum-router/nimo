@@ -101,7 +101,26 @@ def screenshot(path: str) -> None:
 
 
 def dump_ui() -> list[dict]:
-    """Return visible UI elements as [{text, id, class, bounds, clickable}]."""
+    """Return visible UI elements as [{text, id, class, bounds, clickable}].
+
+    ``clickable`` is INHERITED from ancestors, not read off the node alone.
+    Android overwhelmingly puts ``clickable="true"`` on a container -- a
+    list row, a menu item's FrameLayout, a Button's touch target -- while
+    the text or content-desc lives on a non-clickable child. Reading the
+    flag off the labelled node therefore reported most real targets as
+    untappable.
+
+    Observed in CI run #33: tapping "More options" opened Notepad's overflow
+    menu, every item of which came back ``clickable=false``, so the explorer
+    saw an empty screen and pressed Back -- then tapped "More options"
+    again. Ten steps oscillated between those two actions. The LLM path was
+    equally blinded; it just failed less visibly, because a model will
+    cheerfully ask for a tap on something this dump called untappable.
+
+    A tap lands at the labelled node's own centre, which is inside the
+    clickable ancestor's bounds, so inheriting the flag does not change
+    where anything is tapped -- only whether it is considered at all.
+    """
     with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
         xml_path = tmp.name
     _run("shell", "uiautomator", "dump", "/sdcard/nimo_ui.xml", timeout=30)
@@ -111,7 +130,17 @@ def dump_ui() -> list[dict]:
     finally:
         os.unlink(xml_path)
     elems: list[dict] = []
-    for node in tree.iter("node"):
+    # Depth-first walk carrying "is anything above me clickable", since
+    # ElementTree nodes have no parent pointer.
+    root = tree.getroot()
+    stack: list[tuple] = [(root, False)]
+    while stack:
+        node, parent_clickable = stack.pop()
+        clickable = parent_clickable or node.get("clickable") == "true"
+        for child in reversed(list(node)):
+            stack.append((child, clickable))
+        if node.tag != "node":
+            continue
         text = node.get("text", "") or ""
         desc = node.get("content-desc", "") or ""
         res_id = node.get("resource-id", "") or ""
@@ -129,7 +158,10 @@ def dump_ui() -> list[dict]:
             "class": cls.split(".")[-1],
             "x": cx,
             "y": cy,
-            "clickable": node.get("clickable") == "true",
+            "clickable": clickable,
+            # Kept separate so a caller can still tell a genuinely clickable
+            # node from one that only sits inside a clickable ancestor.
+            "self_clickable": node.get("clickable") == "true",
         })
     return elems
 
