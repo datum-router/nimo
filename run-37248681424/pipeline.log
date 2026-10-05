@@ -1,0 +1,11 @@
+[nimo] preflight...
+[nimo] preflight warning: targets API 11: Android 14+ refuses to install apps targeting < 23 — use android_version 13 or lower
+[nimo] analyzing APK...
+[nimo] Notepad (bander.notepad v1.06)
+[nimo] map: 7 activities, 0 deep links, 1 permissions
+[nimo] device: emulator-5554
+[nimo] Path A: targeted bug reproduction
+[nimo] device: emulator-5554 | mode: repro
+[nimo] llm: https://text.pollinations.ai/openai / openai
+
+nimo: LLM backend unavailable: https://text.pollinations.ai/openai (model openai) — HTTP 402 Payment Required: {}. Point nimo at a backend you control via NIMO_BASE_URL / NIMO_API_KEY / NIMO_MODEL, or set NIMO_BACKEND=null for a deterministic device-only run.
