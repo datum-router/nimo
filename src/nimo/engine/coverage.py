@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import xml.etree.ElementTree as ET
 import subprocess
 
 from . import device
@@ -58,6 +59,38 @@ def _ec_class_count(ec_path: str) -> int:
         return 0
 
 
+def _jacoco_totals(xml_path: str) -> dict:
+    """Read the report-level counters out of a JaCoCo XML report.
+
+    Without this, ``report()`` said "converted" and produced no NUMBER, so
+    the frontend had a measured flag and nothing to show -- which is how a
+    "code coverage" tile ends up reading "—" on a run that genuinely
+    measured it.
+
+    JaCoCo puts cumulative <counter> elements as the last children of the
+    <report> root, one per counter type. Only report-level counters are read;
+    the per-class ones nested deeper would double-count.
+    """
+    out: dict = {}
+    try:
+        root = ET.parse(xml_path).getroot()
+    except (ET.ParseError, OSError):
+        return out
+    for counter in root.findall("counter"):
+        kind = (counter.get("type") or "").lower()
+        try:
+            missed = int(counter.get("missed") or 0)
+            covered = int(counter.get("covered") or 0)
+        except ValueError:
+            continue
+        total = missed + covered
+        if not total:
+            continue
+        out[kind] = {"covered": covered, "total": total,
+                     "pct": round(100.0 * covered / total, 1)}
+    return out
+
+
 def report(ec_path: str, out_dir: str,
            classes_dir: str | None = None) -> dict:
     """Convert coverage.ec into a report dict. Honest about what is missing."""
@@ -76,6 +109,21 @@ def report(ec_path: str, out_dir: str,
             info["xml"] = os.path.basename(xml)
             info["note"] = ("per-package numbers need the app's own classes; "
                             "library classes excluded from the denominator")
+            counters = _jacoco_totals(xml)
+            if counters:
+                info["counters"] = counters
+                # `line` is what "code coverage" means to most readers;
+                # fall back to instruction coverage when lines are absent
+                # (a build without debug info reports no LINE counter).
+                primary = counters.get("line") or counters.get("instruction")
+                if primary:
+                    info["pct"] = primary["pct"]
+                    info["covered"] = primary["covered"]
+                    info["total"] = primary["total"]
+                    info["basis"] = "line" if "line" in counters else "instruction"
+            else:
+                # Converted but unreadable: say so rather than implying 0%.
+                info["note"] += "; XML produced no readable counters"
         except Exception as exc:
             info["converted"] = False
             info["note"] = f"jacoco CLI failed: {exc}"

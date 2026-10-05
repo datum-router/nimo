@@ -135,6 +135,49 @@ button.run:disabled{opacity:.6;cursor:wait}
 .pill.run{background:#FFF3E0;color:#A8430F;border-color:var(--orange)}
 .pill.done{background:#E7F5F1;color:var(--good);border-color:var(--good)}
 .pill.fail{background:#FDF0EE;color:var(--bad);border-color:var(--bad)}
+/* `not_reproduced` and `inconclusive` are neither pass nor fail. They used to
+   fall through to .pill.run -- the orange RUNNING pill -- so a finished run
+   looked stuck. */
+.pill.warn{background:#FFF8E6;color:#7A4B00;border-color:#D9A200}
+
+/* ---- session + history ---- */
+.session{display:flex;align-items:center;gap:12px;background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;padding:11px 15px;
+  margin-bottom:16px;box-shadow:var(--shadow)}
+.session img{border-radius:50%;background:var(--bg3);flex-shrink:0}
+.s-who{flex:1;min-width:0;line-height:1.35}
+.s-who b{display:block;font-size:14.5px;color:var(--txt)}
+.s-who span{font-size:12.5px;color:var(--mut)}
+.runs{width:100%;border-collapse:collapse;font-size:13.5px}
+.runs td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.runs tr:last-child td{border-bottom:0}
+.runs td.when{color:var(--mut);white-space:nowrap;font-size:12.5px}
+.runs td.what b{font-weight:700}
+.runs td.what span{color:var(--mut);font-size:12.5px;display:block}
+.runs td.num{text-align:right;color:var(--mut);white-space:nowrap;font-size:12.5px;
+  font-variant-numeric:tabular-nums}
+.runs td.act a{color:var(--acc);font-weight:700;text-decoration:none;white-space:nowrap}
+.runs td.act a:hover{color:var(--acc-h);text-decoration:underline}
+@media(max-width:620px){.runs td.num{display:none}}
+
+/* ---- detailed report ---- */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
+  gap:12px;margin:16px 0}
+.metric{background:var(--bg2);border:1px solid var(--line);border-radius:8px;
+  padding:13px 15px;border-top:3px solid var(--orange)}
+.metric.unmeasured{border-top-color:var(--line2);background:var(--bg3)}
+.metric h4{font-size:11.5px;text-transform:uppercase;letter-spacing:1px;
+  color:var(--mut);font-weight:700;margin-bottom:6px}
+.metric .big{font-size:26px;font-weight:800;color:var(--txt);line-height:1.15;
+  font-variant-numeric:tabular-nums}
+.metric.unmeasured .big{font-size:15px;color:var(--mut);font-weight:700}
+.metric .sub2{font-size:12.5px;color:var(--mut);margin-top:3px}
+.metric .bar{height:6px;background:var(--bg3);border-radius:99px;margin-top:9px;
+  overflow:hidden;border:1px solid var(--line)}
+.metric .bar i{display:block;height:100%;background:var(--orange)}
+.screenlist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.screenlist span{background:var(--bg2);border:1px solid var(--line);
+  border-radius:4px;padding:3px 9px;font-size:12px;color:var(--txt)}
 .progress{height:10px;background:var(--bg3);border-radius:99px;margin:12px 0;overflow:hidden;
   border:1px solid var(--line)}
 .progress i{display:block;height:100%;
@@ -270,6 +313,24 @@ details.boring summary:hover{color:var(--acc-h);text-decoration:underline}
 <div class="wrap">
   <h1>Run a test</h1>
   <p class="sub">Pick a device, point nimo at an APK, and it boots Android in the cloud (redroid, falling back to the emulator), runs the full test, and reports back — live, right here.</p>
+
+  <!-- ============ SESSION ============ -->
+  <div class="session" id="session" hidden>
+    <img id="s-avatar" alt="" width="34" height="34">
+    <div class="s-who">
+      <b id="s-login">—</b>
+      <span id="s-scope">your runs below are the ones dispatched by this account</span>
+    </div>
+    <button class="verify" id="s-out" onclick="signOut()">Sign out</button>
+  </div>
+
+  <!-- ============ HISTORY ============ -->
+  <div class="card" id="history" hidden>
+    <h3>Your previous runs</h3>
+    <p class="hint" id="h-note" style="margin-top:0"></p>
+    <table class="runs" id="h-table"><tbody></tbody></table>
+    <p class="hint" id="h-empty" hidden>No runs from this account yet — your first one will appear here.</p>
+  </div>
 
   <!-- ============ CONFIG ============ -->
   <div id="config">
@@ -422,9 +483,13 @@ details.boring summary:hover{color:var(--acc-h);text-decoration:underline}
       </div>
       <div class="bugtiles" id="r-bugtiles"></div>
       <div class="note" id="r-note"></div>
+      <div class="maplabel" style="margin-top:22px">📊 detailed report</div>
+      <div class="metrics" id="r-metrics"></div>
+      <div id="r-screens"></div>
       <div class="links">
         <a id="r-run" href="#" target="_blank" rel="noopener">View GitHub run →</a>
         <a id="r-log" href="#" target="_blank" rel="noopener">Full pipeline log →</a>
+        <a id="r-json" href="#" target="_blank" rel="noopener">Raw summary JSON →</a>
       </div>
     </div>
   </div>
@@ -469,6 +534,9 @@ async function verifyToken(){
       const me = await fetch("https://api.github.com/user", { headers: { "Authorization": "Bearer " + token } }).then(x => x.json());
       st.className = "ok";
       st.textContent = "✓ Connected" + (me && me.login ? " as " + me.login : "") + " — ready to run.";
+      // Start a session so the identity persists across reloads and the
+      // user's own run history can be listed.
+      if (me && me.login) saveSession(me);
     } else if (r.status === 401) { st.className = "bad"; st.textContent = "✗ Bad token — check it and try again."; }
     else if (r.status === 403) { st.className = "bad"; st.textContent = "✗ Token works but can't reach this repo — needs Actions read & write on " + REPO + "."; }
     else if (r.status === 404) { st.className = "bad"; st.textContent = "✗ Repo not visible to this token — this account needs access to " + REPO + "."; }
@@ -477,6 +545,138 @@ async function verifyToken(){
     st.className = "bad"; st.textContent = "✗ Couldn't reach GitHub — check your connection.";
   }
   btn.disabled = false;
+}
+
+// ===== session =====
+//
+// There is no backend here: this is a static page on GitHub Pages. So the
+// GitHub token the user already supplies IS the identity -- `GET /user`
+// resolves it to an account, and GitHub's own Actions API attributes every
+// dispatch to the account that made it (`triggering_actor`). That gives a
+// real per-user run history with no server and no index file to maintain.
+//
+// BE CLEAR ABOUT WHAT THIS IS NOT. It is attribution and filtering, not
+// isolation: the `live` branch is public, so another person's run artifacts
+// are readable by anyone who knows the URL, and anyone with access to the
+// repository can list every run. Per-tenant isolation needs the hosted API
+// (docs/03-hosted-architecture.md), not a static page. The UI says so rather
+// than implying a privacy guarantee it cannot keep.
+const SESSION_KEY = "nimo_session";
+let session = null;
+
+function loadSession(){
+  try { session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); }
+  catch(e) { session = null; }
+  renderSession();
+  if (session) loadHistory();
+}
+
+function saveSession(me){
+  session = { login: me.login, avatar: me.avatar_url || "", name: me.name || "" };
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch(e) {}
+  renderSession();
+  loadHistory();
+}
+
+function signOut(){
+  session = null;
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem("nimo_gh_token");
+  } catch(e) {}
+  if ($("f-token")) $("f-token").value = "";
+  $("tok-state").textContent = ""; $("tok-state").className = "";
+  renderSession();
+}
+
+function renderSession(){
+  const box = $("session"), hist = $("history");
+  if (!session) { box.hidden = true; hist.hidden = true; return; }
+  box.hidden = false;
+  $("s-login").textContent = session.name
+    ? `${session.name} (@${session.login})` : `@${session.login}`;
+  const av = $("s-avatar");
+  if (session.avatar) { av.src = session.avatar; av.hidden = false; }
+  else { av.hidden = true; }
+}
+
+// ===== per-user run history =====
+async function loadHistory(){
+  if (!session) return;
+  const tok = ($("f-token") && $("f-token").value || "").trim();
+  if (!tok) return;                       // listing runs needs the token
+  const hist = $("history");
+  hist.hidden = false;
+  $("h-note").textContent = "Loading…";
+  let runs = [];
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${REPO}/actions/workflows/${WF}/runs?per_page=50`,
+      { headers: { "Accept": "application/vnd.github+json",
+                   "Authorization": "Bearer " + tok } });
+    if (!r.ok) { $("h-note").textContent = `Could not list runs (GitHub said ${r.status}).`; return; }
+    const d = await r.json();
+    // Attribute to the account that dispatched, not the repo owner.
+    runs = (d.workflow_runs || []).filter(x =>
+      (x.triggering_actor && x.triggering_actor.login) === session.login ||
+      (x.actor && x.actor.login) === session.login);
+  } catch(e) {
+    $("h-note").textContent = "Could not reach GitHub to list your runs.";
+    return;
+  }
+  runs = runs.slice(0, 15);
+  $("h-note").textContent = runs.length
+    ? `${runs.length} run${runs.length===1?"":"s"} dispatched by @${session.login}. `
+      + "Results are published to a public branch, so treat them as shareable, not private."
+    : "";
+  $("h-empty").hidden = runs.length > 0;
+  const tb = $("h-table").querySelector("tbody");
+  tb.innerHTML = "";
+  // Render the rows immediately from the Actions API, then fill in each
+  // verdict as its summary.json arrives: a run's outcome lives on the live
+  // branch, and waiting for 15 fetches before showing anything would make
+  // the panel look broken.
+  runs.forEach(x => {
+    const tr = document.createElement("tr");
+    const when = new Date(x.created_at);
+    const mins = x.updated_at
+      ? Math.round((new Date(x.updated_at) - when) / 600) / 100 : null;
+    tr.innerHTML =
+      `<td class="when">${when.toLocaleString()}</td>`
+      + `<td class="what" id="hv-${x.id}"><b>${x.status === "completed"
+            ? (x.conclusion === "success" ? "finished" : esc(String(x.conclusion||"finished")))
+            : esc(String(x.status||""))}</b><span>loading result…</span></td>`
+      + `<td class="num">${mins != null ? mins + " min" : ""}</td>`
+      + `<td class="act"><a href="?run=${x.id}" >Open →</a></td>`;
+    tb.appendChild(tr);
+    fetch(`${RAW}/run-${x.id}/summary.json`).then(r => r.ok ? r.json() : null)
+      .then(sm => {
+        const cell = $(`hv-${x.id}`);
+        if (!cell) return;
+        if (!sm) { cell.querySelector("span").textContent =
+          "no published result (run may have failed before publishing)"; return; }
+        const V = { reproduced:"Bug reproduced", bugs_found:"Bugs found",
+                    clean:"Clean — no crashes", not_reproduced:"Not reproduced",
+                    inconclusive:"Inconclusive", failed:"Run failed",
+                    backend_unavailable:"Backend unavailable" };
+        cell.querySelector("b").textContent = V[sm.verdict] || sm.verdict || "—";
+        const m = sm.metrics || {}, a = m.activity_coverage || {};
+        const bits = [sm.app || sm.package || "", sm.mode ? sm.mode + " mode" : ""];
+        if (a.measured) bits.push(`${a.pct}% activities`);
+        if ((sm.bugs||[]).length) bits.push(`${sm.bugs.length} crash(es)`);
+        if (m.ai_guidance === false) bits.push("no AI guidance");
+        cell.querySelector("span").textContent = bits.filter(Boolean).join(" · ");
+      }).catch(() => {});
+  });
+}
+
+// Deep link: ?run=<id> opens a past run's result directly.
+function openRunFromQuery(){
+  const id = new URLSearchParams(location.search).get("run");
+  if (!id) return;
+  runId = id;
+  $("config").style.display = "none";
+  finish("success");
 }
 
 // show chosen file names on the styled buttons
@@ -940,21 +1140,109 @@ async function finish(conclusion){
   }
   $("r-run").href = `https://github.com/${REPO}/actions/runs/${runId}`;
   $("r-log").href = `${RAW}/run-${runId}/pipeline.log`;
+  $("r-json").href = `${RAW}/run-${runId}/summary.json`;
   window.scrollTo({top: document.body.scrollHeight, behavior:"smooth"});
+}
+
+// ---- detailed report ------------------------------------------------------
+// Every tile reads a `measured` flag from summary.json rather than inferring
+// from a zero. A run with no instrumented build has NO line coverage, and
+// printing "0%" for that is a false statement about the app rather than a
+// missing number -- the same mistake the coverage donut used to make.
+function metricTile(title, measured, big, sub, pct){
+  const unmeasured = measured ? "" : " unmeasured";
+  const bar = (measured && pct != null)
+    ? `<div class="bar"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`
+    : "";
+  return `<div class="metric${unmeasured}">
+    <h4>${title}</h4>
+    <div class="big">${measured ? big : "not measured"}</div>
+    <div class="sub2">${sub}</div>${bar}
+  </div>`;
+}
+
+function renderMetrics(s){
+  const m = s.metrics || {};
+  const a = m.activity_coverage || {}, l = m.line_coverage || {},
+        sc = m.screens || {}, st = m.steps || {}, sw = m.intent_sweep || {};
+  const tiles = [];
+
+  tiles.push(metricTile("Activity coverage", !!a.measured,
+    `${a.pct != null ? a.pct : 0}%`,
+    a.measured
+      ? `${a.visited||0} of ${a.total||0} declared activities reached`
+        + (a.unreachable ? ` \u00b7 ${a.unreachable} unreachable` : "")
+      : `the app declares ${a.declared||0} activities; repro mode runs no crawl`,
+    a.pct));
+
+  tiles.push(metricTile("Code coverage", !!l.measured,
+    l.pct != null ? `${l.pct}%` : "\u2014",
+    l.measured
+      ? `${l.covered||0} of ${l.total||0} ${l.basis||"line"}s covered (JaCoCo, app classes only)`
+      : (l.ec_collected
+         ? `execution data collected (${l.ec_class_records||0} class records) but not converted to numbers`
+         : (l.note || "needs an instrumented build")),
+    l.pct));
+
+  tiles.push(metricTile("Screens reached", !!sc.measured,
+    String(sc.reached||0),
+    "distinct screens actually opened"));
+
+  tiles.push(metricTile("Steps driven", !!st.measured,
+    String(st.taken||0),
+    st.off_app
+      ? `${st.in_app != null ? st.in_app : (st.taken||0)-st.off_app} inside the app · ${st.off_app} left it and were relaunched`
+      : "all inside the app under test"));
+
+  tiles.push(metricTile("Deep links / intents", !!sw.measured,
+    `${sw.reached||0}/${sw.targets||0}`,
+    "enumerated intent targets that opened"));
+
+  tiles.push(metricTile("AI guidance", true,
+    m.ai_guidance === false ? "off" : "on",
+    m.ai_guidance === false
+      ? "backend unreachable — explored deterministically"
+      : "model-guided exploration"));
+
+  $("r-metrics").innerHTML = tiles.join("");
+
+  // The screens themselves, when we know them: "which screens" is the first
+  // question a coverage number provokes.
+  const names = sc.names || [];
+  $("r-screens").innerHTML = names.length
+    ? `<div class="maplabel">🗂️ screens reached</div><div class="screenlist">`
+      + names.map(n => `<span>${esc(String(n).split("/").pop())}</span>`).join("")
+      + `</div>`
+    : "";
 }
 
 function renderResult(s){
   const v = $("r-verdict"), pill = $("r-pill");
-  const titles = { bugs_found:["Bugs found", "v-bad"], clean:["Clean — no crashes","v-good"],
-    inconclusive:["Inconclusive — nothing tested","v-warn"],
-    reproduced:["Bug reproduced","v-bad"], not_reproduced:["Not reproduced","v-warn"], failed:["Run failed","v-bad"],
+  // Verdict -> [headline, headline class, PILL class].
+  //
+  // The pill class used to be `verdict==="clean" ? "done" : "failed" ? "fail"
+  // : "run"` -- so every other outcome, including `reproduced` and
+  // `not_reproduced`, got the ORANGE RUNNING pill on a finished run. The
+  // status therefore looked stuck or broken for the two most common results.
+  //
+  // The colour reflects the APP's health, not the tool's: finding a crash is
+  // a success for nimo and bad news for the build, so it is red.
+  const titles = {
+    bugs_found:          ["Bugs found", "v-bad", "fail"],
+    reproduced:          ["Bug reproduced", "v-bad", "fail"],
+    clean:               ["Clean — no crashes", "v-good", "done"],
+    not_reproduced:      ["Not reproduced", "v-warn", "warn"],
+    inconclusive:        ["Inconclusive — nothing tested", "v-warn", "warn"],
+    failed:              ["Run failed", "v-bad", "fail"],
     // An outage is not a result for the app. Saying "Run failed" invites the
     // reader to conclude something about their own code.
-    backend_unavailable:["AI backend unavailable — no verdict","v-warn"] };
-  const [t, c] = titles[s.verdict] || [s.verdict, "v-warn"];
+    backend_unavailable: ["AI backend unavailable — no verdict", "v-warn", "warn"],
+  };
+  const verdict = s.verdict || "failed";
+  const [t, c, p] = titles[verdict] || [verdict.replace(/_/g," "), "v-warn", "warn"];
   v.textContent = t; v.className = "verdict " + c;
-  pill.textContent = s.verdict.replace(/_/g," ");
-  pill.className = "pill " + (s.verdict==="clean" ? "done" : s.verdict==="failed" ? "fail" : "run");
+  pill.textContent = verdict.replace(/_/g," ");
+  pill.className = "pill " + p;
   // Coverage donut.
   //
   // `repro` mode runs no discovery crawl, so there is no coverage to report
@@ -979,6 +1267,7 @@ function renderResult(s){
     ? `${s.visited||0}/${s.total||0}`
     : "— (repro mode runs no crawl)";
   $("r-bugs").textContent = (s.bugs||[]).length;
+  renderMetrics(s);
   const secs = s.wall_seconds || 0;
   $("r-time").textContent = secs > 90 ? Math.round(secs/60)+" min" : Math.round(secs)+" s";
   const tiles = $("r-bugtiles"); tiles.innerHTML = "";
@@ -1003,6 +1292,13 @@ function renderResult(s){
     v.className = "verdict v-warn";
   }
 }
+
+// ===== init =====
+// Restore the signed-in identity before anything else, so the history panel
+// and the identity strip are correct on a cold load rather than only after a
+// fresh Verify.
+loadSession();
+openRunFromQuery();
 </script>
 </body>
 </html>

@@ -13,6 +13,93 @@ import json
 import os
 
 
+def _metrics(rep: dict, disc: dict | None, sweep: dict,
+             visited: int, total: int, coverage: float,
+             unreachable: list) -> dict:
+    """The detailed report, as structured data rather than prose.
+
+    Every figure carries its own ``measured`` flag. That is the whole point:
+    a run that never instrumented the APK has no line coverage, and emitting
+    0% for it would be a false statement about the app rather than a missing
+    number. The frontend renders "not measured" from these flags instead of
+    guessing from a zero.
+    """
+    repro = rep.get("repro") or {}
+    cov = (disc or {}).get("coverage") or {}
+
+    # Activity coverage: declared activities actually reached.
+    # `declared` comes from the manifest and is known even in repro mode,
+    # where no crawl runs. Reporting it separately lets the UI say "7
+    # activities, coverage not measured in this mode" instead of either
+    # hiding the app's size or implying 0% of 7 were reached.
+    declared = len((rep.get("map") or {}).get("activities") or [])
+    activity = {
+        "measured": total > 0,
+        "visited": visited,
+        "total": total,
+        "declared": declared,
+        "pct": coverage if total else None,
+        "unreachable": len(unreachable or []),
+    }
+
+    # Line coverage: only exists with an instrumented build AND the JaCoCo
+    # CLI. `converted` false means an .ec was collected but not turned into
+    # numbers -- which is a different state from "no coverage run at all",
+    # and the note explains which.
+    line = {
+        # "converted" alone was not enough: a conversion can succeed and
+        # still yield no readable counters, which would show a measured tile
+        # with no number in it.
+        "measured": bool(cov.get("converted")) and cov.get("pct") is not None,
+        "ec_collected": bool(cov),
+        "ec_class_records": cov.get("ec_class_records"),
+        "xml": cov.get("xml"),
+        "pct": cov.get("pct"),
+        "covered": cov.get("covered"),
+        "total": cov.get("total"),
+        "basis": cov.get("basis"),
+        "counters": cov.get("counters"),
+        "note": cov.get("note") or (
+            "no instrumented build was supplied, so line coverage was not "
+            "measured; activity coverage below is measured on the release APK"
+        ),
+    }
+
+    # Screens actually seen, which is NOT the same as activities declared:
+    # a screen can be reached that the manifest never named, and a declared
+    # activity can redirect elsewhere and never really open.
+    seen = (disc or {}).get("visited_activities") or []
+    screens = {
+        "measured": bool(disc),
+        "reached": len(seen),
+        "names": sorted(seen)[:50],
+    }
+
+    steps_taken = repro.get("steps_taken") or repro.get("steps") or 0
+    off = repro.get("off_app_steps")
+    steps = {
+        "measured": bool(repro),
+        "taken": steps_taken,
+        "in_app": repro.get("steps_in_app"),
+        "off_app": len(off) if isinstance(off, list) else off,
+    }
+
+    return {
+        "activity_coverage": activity,
+        "line_coverage": line,
+        "screens": screens,
+        "steps": steps,
+        "intent_sweep": {
+            "measured": bool(sweep),
+            "targets": sweep.get("targets", 0),
+            "reached": len(sweep.get("reached", [])),
+        },
+        "ai_guidance": rep.get("ai_guidance", True),
+        "degraded": bool(rep.get("degraded")),
+        "degraded_reason": rep.get("degraded_reason") or "",
+    }
+
+
 def build(report_path: str, device: dict, out_path: str) -> dict:
     with open(report_path) as f:
         rep = json.load(f)
@@ -115,6 +202,8 @@ def build(report_path: str, device: dict, out_path: str) -> dict:
         "wall_seconds": rep.get("wall_seconds"),
         "customer_note": note,
         "run_artifacts": "out/",
+        "metrics": _metrics(rep, disc, sweep, visited, total, coverage,
+                            unreachable),
     }
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w") as f:
