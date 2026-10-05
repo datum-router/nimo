@@ -16,6 +16,13 @@ from __future__ import annotations
 import sys
 
 from . import __version__
+from .llm.client import LLMUnavailable
+
+#: Exit code for "the LLM backend could not be reached".
+#: Separate from 2, which `nimo repro` already uses for both a
+#: `not_reproduced` verdict and an argument error -- a provider outage must be
+#: distinguishable from a genuine test result, by CI and by a human.
+EXIT_LLM_UNAVAILABLE = 3
 
 _DELEGATES = {
     "repro": "nimo.engine.repro",
@@ -160,7 +167,20 @@ def main() -> None:
     if cmd == "selftest":
         raise SystemExit(selftest())
     if cmd in _DELEGATES:
-        raise SystemExit(_delegate(_DELEGATES[cmd], rest))
+        try:
+            raise SystemExit(_delegate(_DELEGATES[cmd], rest))
+        except LLMUnavailable as exc:
+            # A 40-line urllib traceback is not a product surface. The
+            # exception message already names the endpoint, the status and
+            # the way out, so print that and nothing else.
+            #
+            # Exit 3, deliberately distinct: `nimo repro` uses 2 for both
+            # `not_reproduced` and argument errors, so a backend outage sharing
+            # that code would be indistinguishable from a real test result. CI
+            # needs to tell "the provider was down" (infrastructure, retry it)
+            # apart from "the bug did not reproduce" (a finding).
+            print(f"\nnimo: {exc}", file=sys.stderr)
+            raise SystemExit(EXIT_LLM_UNAVAILABLE) from None
     print(f"nimo: unknown command {cmd!r}\n", file=sys.stderr)
     print(_USAGE, file=sys.stderr)
     raise SystemExit(2)
