@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 
 from . import actions, apkmeta, auth, autofill, blockers, coverage, deeplinks, device, login_prologue, preflight
 from .crawler import CrawlBudget, explore
-from ..llm import get_backend
+from ..llm import degradation_occurred, degradation_reason, get_backend
 from .repro import reproduce
 
 
@@ -216,6 +216,14 @@ def main() -> None:
 
     report["finished"] = datetime.now(timezone.utc).isoformat()
     report["wall_seconds"] = round(time.time() - t0, 1)
+    # Whether AI guidance actually survived the run. Checked at the END, not
+    # at construction: the backend can be lost mid-run, and a report that
+    # claims guidance it did not have would overstate the exploration's
+    # quality -- "no bugs found" means far less when navigation was random.
+    report["ai_guidance"] = not degradation_occurred()
+    if degradation_occurred():
+        report["degraded"] = True
+        report["degraded_reason"] = degradation_reason()
     with open(os.path.join(args.out, "pipeline_report.json"), "w") as f:
         json.dump(report, f, indent=2)
     print(f"[nimo] pipeline report: {args.out}/pipeline_report.json "

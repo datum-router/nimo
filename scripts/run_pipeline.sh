@@ -175,6 +175,20 @@ json.dump({"verdict": verdict,
 EOF
 fi
 
+# The probe only catches a backend that was ALREADY down. The tier flaps
+# inside a single run -- measured: probe ok, then the first real call 402 --
+# so the authoritative signal is what the pipeline actually experienced.
+if [ -f out/pipeline_report.json ]; then
+  if python3 -c "
+import json,sys
+r = json.load(open('out/pipeline_report.json'))
+sys.exit(0 if r.get('degraded') or r.get('ai_guidance') is False else 1)
+" 2>/dev/null; then
+    echo "[nimo] run completed WITHOUT ai guidance (backend lost mid-run)"
+    DEGRADED=1
+  fi
+fi
+
 # Label a degraded run everywhere it surfaces. A customer reading "no bugs
 # found" deserves to know the exploration was random rather than guided --
 # an unlabelled degraded run is a quieter version of the false green.
