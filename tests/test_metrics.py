@@ -164,3 +164,41 @@ def test_line_coverage_is_measured_when_numbers_exist(tmp_path):
     assert line["measured"] is True
     assert (line["pct"], line["covered"], line["total"]) == (75.0, 75, 100)
     assert line["basis"] == "line"
+
+
+def test_discover_mode_reports_crawl_actions_as_steps(tmp_path):
+    """Live run #35 reported 0 steps after a real 358-second crawl.
+
+    The two halves of the engine count different things -- the repro loop
+    walks a fixed step budget, the crawler takes as many actions as its
+    budget allows -- and reading only repro steps left this unmeasured for
+    every discover run. `basis` says which is being reported, so a bare
+    number is never ambiguous.
+    """
+    s = _summary(tmp_path, {
+        "package": "p", "map": {"activities": ["a", "b"]},
+        "discovery": {"visited_activities": ["p/.A"], "coverage_pct": 50.0,
+                      "bugs": [], "unreachable": [],
+                      "actions_taken": 37, "deep_links_fired": 4},
+    })
+    st = s["metrics"]["steps"]
+    assert st["measured"] is True
+    assert st["taken"] == 37
+    assert st["basis"] == "crawl actions"
+    assert st["deep_links_fired"] == 4
+
+
+def test_repro_steps_keep_their_own_basis(tmp_path):
+    s = _summary(tmp_path, {
+        "package": "p", "map": {"activities": []},
+        "repro": {"verdict": "not_reproduced", "steps_taken": 25,
+                  "steps_in_app": 20, "off_app_steps": [{"step": 1}] * 5},
+    })
+    st = s["metrics"]["steps"]
+    assert st["basis"] == "repro steps"
+    assert (st["taken"], st["in_app"], st["off_app"]) == (25, 20, 5)
+
+
+def test_a_run_with_neither_half_is_unmeasured(tmp_path):
+    s = _summary(tmp_path, {"package": "p", "map": {"activities": []}})
+    assert s["metrics"]["steps"]["measured"] is False

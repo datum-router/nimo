@@ -1191,8 +1191,11 @@ function renderMetrics(s){
   tiles.push(metricTile("Steps driven", !!st.measured,
     String(st.taken||0),
     st.off_app
-      ? `${st.in_app != null ? st.in_app : (st.taken||0)-st.off_app} inside the app · ${st.off_app} left it and were relaunched`
-      : "all inside the app under test"));
+      ? `${st.in_app != null ? st.in_app : (st.taken||0)-st.off_app} inside the app \u00b7 ${st.off_app} left it and were relaunched`
+      : (st.basis === "crawl actions"
+         ? `crawl actions on the device`
+           + (st.deep_links_fired ? ` \u00b7 ${st.deep_links_fired} deep links fired` : "")
+         : "all inside the app under test")));
 
   tiles.push(metricTile("Deep links / intents", !!sw.measured,
     `${sw.reached||0}/${sw.targets||0}`,
