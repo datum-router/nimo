@@ -75,6 +75,23 @@ class NullBackend:
     #: How many times to scroll one screen before giving up on it.
     SCROLLS_PER_SCREEN = 2
 
+    #: Controls that navigate OUT of the app under test rather than within
+    #: it. Observed in CI run #29: step 2 tapped "Notepad, Navigate home"
+    #: (the ActionBar up affordance) and the run spent its remaining 23
+    #: steps driving the launcher, the Gallery and the Camera -- then
+    #: reported a verdict for an app it was no longer in.
+    #:
+    #: The loop also relaunches the app whenever a step escapes it, which is
+    #: the robust guarantee; this list is the cheap half that stops the step
+    #: being wasted in the first place. Matched on the whole label, so an
+    #: app's own "Home" tab is not caught by the launcher's "Navigate home".
+    EXIT_LABELS = frozenset({
+        "navigate home", "navigate up", "home", "recent apps", "overview",
+        "app info", "back", "close app", "minimise", "minimize",
+    })
+    #: Substrings that indicate leaving for another app entirely.
+    EXIT_HINTS = ("navigate home", "switch to ", "open in ", "app info")
+
     def __init__(self) -> None:
         self._elements: list[dict] = []
         self._tapped: set[str] = set()
@@ -93,6 +110,14 @@ class NullBackend:
         self._elements = [e for e in (elements or []) if isinstance(e, dict)]
 
     # -- internals --------------------------------------------------------
+    @classmethod
+    def _is_exit(cls, label: str) -> bool:
+        """True if tapping this would leave the app under test."""
+        low = label.strip().lower()
+        if low in cls.EXIT_LABELS:
+            return True
+        return any(h in low for h in cls.EXIT_HINTS)
+
     @staticmethod
     def _identity(el: dict) -> str:
         """Stable identity for one element, independent of its position."""
@@ -112,8 +137,11 @@ class NullBackend:
         for el in self._elements:
             if not el.get("clickable"):
                 continue
-            if not str(el.get("label") or "").strip():
+            label = str(el.get("label") or "").strip()
+            if not label:
                 continue  # unlabelled: the executor could not resolve it
+            if self._is_exit(label):
+                continue  # would leave the app; the loop would relaunch
             out.append(el)
         return out
 

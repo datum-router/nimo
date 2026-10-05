@@ -62,6 +62,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # androguard pulls a sizeable dependency tree, re-downloaded on every
+      # run: 23s measured in run #30, second only to the emulator boot in
+      # pre-test cost. Keyed on pyproject.toml so a dependency change
+      # invalidates it rather than serving a stale wheel set.
+      - name: Cache pip wheels
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Install adb + nimo
         run: |
           sudo apt-get update -qq

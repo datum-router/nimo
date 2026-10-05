@@ -167,8 +167,15 @@ code{background:var(--bg3);border:1px solid var(--line);border-radius:3px;paddin
   font-size:12.5px;color:var(--txt)}
 pre{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:14px;
   font-size:12.5px;overflow-x:auto;color:var(--txt);white-space:pre-wrap}
-footer{background:var(--ink);margin-top:50px;padding:26px 0;color:#DDD;font-size:13px}
-footer a{color:#fff}
+/* The footer sat INSIDE .wrap, so its navy band was clipped to the content
+   column and read as a stray bar rather than a page footer. It is now a
+   full-bleed band with its own inner .wrap, matching the nav. */
+footer{background:var(--ink);margin-top:50px;padding:28px 0;color:#DDD;font-size:13.5px}
+footer .wrap{display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:14px}
+footer b{color:#fff;font-weight:700}
+footer a{color:#fff;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.45)}
+footer a:hover{color:var(--orange);border-bottom-color:var(--orange)}
 
 /* ---- live view ---- */
 .dots i{display:inline-block;width:5px;height:5px;border-radius:99px;background:var(--orange);
@@ -421,9 +428,14 @@ details.boring summary:hover{color:var(--acc-h);text-decoration:underline}
       </div>
     </div>
   </div>
-
-  <footer>nimo · agentic bug discovery &amp; reproduction · <a href="https://github.com/datum-router/nimo" style="color:var(--acc)">GitHub</a></footer>
 </div>
+
+<footer>
+  <div class="wrap">
+    <span><b>nimo</b> · agentic bug discovery &amp; reproduction</span>
+    <span><a href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">GitHub</a></span>
+  </div>
+</footer>
 
 <script>
 // ===== config: set this after deploying worker/dispatch.js =====
@@ -434,7 +446,7 @@ const RAW = `https://raw.githubusercontent.com/${REPO}/live`;
 const RAW_MAIN = `https://raw.githubusercontent.com/${REPO}/main`;
 
 const $ = id => document.getElementById(id);
-let runId = null, pollTimers = [];
+let runId = null, pollTimers = [], lastStep = 0;
 
 // token: restored from this browser only
 try { $("f-token").value = localStorage.getItem("nimo_gh_token") || ""; } catch(e) {}
@@ -777,10 +789,24 @@ function trackRun(){
       const r = await fetch(`${RAW}/run-${runId}/progress.json?t=${Date.now()}`);
       if (r.ok) {
         const p = await r.json();
-        const pct = p.total ? Math.round(100*p.visited/p.total) : 0;
+        // Two kinds of progress. The crawl measures screens visited; repro
+        // mode walks a fixed step budget and visits no screens at all, so
+        // reading only `total` left the bar and counter at zero for what is
+        // now the default mode.
+        const byScreens = (p.total || 0) > 0;
+        const budget = p.step_budget || 25;
+        const pct = byScreens
+          ? Math.round(100 * (p.visited || 0) / p.total)
+          : Math.min(100, Math.round(100 * (p.step || 0) / budget));
         $("t-bar").style.width = pct + "%";
         $("t-phase").textContent = funPhase(p.phase);
-        $("t-count").textContent = (p.visited||0) + "/" + (p.total||0) + " screens explored";
+        $("t-count").textContent = byScreens
+          ? (p.visited||0) + "/" + (p.total||0) + " screens explored"
+          : (p.step||0) + "/" + budget + " steps driven on the device";
+        if (p.step || p.visited) {
+          $("t-pill").textContent = byScreens ? "exploring…" : "driving the app…";
+        }
+        lastStep = p.step || 0;
         renderAppMap(p);
         renderActions(p);
       }
@@ -788,8 +814,13 @@ function trackRun(){
     const img = $("shot");
     img.onload = () => {
       img.style.display = "block"; $("noshot").style.display = "none";
-      $("shotmeta").textContent = "live screen · updated " +
-        new Date().toLocaleTimeString();
+      // Be explicit about WHAT is on screen. Before the app is launched the
+      // frame is Android's own launcher, and showing that under a label like
+      // "live screen" read as "nimo is doing nothing" -- the operator could
+      // not tell a booting device from a stuck one.
+      $("shotmeta").textContent = lastStep > 0
+        ? `live screen · step ${lastStep} · updated ${new Date().toLocaleTimeString()}`
+        : "Android is booting — this is the launcher, not your app yet";
     };
     img.onerror = () => { img.style.display = "none"; $("noshot").style.display = "flex"; };
     img.src = `${RAW}/run-${runId}/latest.png?t=${Date.now()}`;
