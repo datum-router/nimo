@@ -78,3 +78,45 @@ def test_emulator_script_has_no_line_continuations():
                     f"will execute with no arguments: {line.strip()!r}"
                 )
     assert checked, "expected at least one emulator script block"
+
+
+def test_repro_exit_codes_are_distinct():
+    """"Did not reproduce" must not share a code with "you invoked me wrong".
+
+    While both were 2, the demo workflow could only choose between failing on
+    every legitimate negative result or tolerating 2 and thereby hiding real
+    argument errors. Neither is acceptable for a suite whose job is to prove
+    the product works.
+    """
+    from nimo.cli import EXIT_LLM_UNAVAILABLE
+    from nimo.engine.repro import EXIT_NOT_REPRODUCED
+
+    codes = {0, 2, EXIT_LLM_UNAVAILABLE, EXIT_NOT_REPRODUCED}
+    assert len(codes) == 4, f"exit codes must be mutually distinct: {codes}"
+    assert EXIT_NOT_REPRODUCED != 2, "a negative result is not a usage error"
+
+    src = (WORKFLOWS.parents[1] / "src" / "nimo" / "engine" / "repro.py").read_text(
+        encoding="utf-8")
+    assert "else EXIT_NOT_REPRODUCED" in src
+
+
+def test_demo_handles_exit_codes_on_one_line():
+    """The emulator action runs `script:` line by line.
+
+    A shell variable set on one line is gone by the next, so exit-code
+    handling split across lines would read an empty $code and pass
+    everything -- silently greening the matrix regardless of outcome. Same
+    line-by-line trap that once executed `nimo repro \\` on its own.
+    """
+    text = (WORKFLOWS / "demo.yml").read_text(encoding="utf-8")
+    repro_lines = [ln for ln in text.splitlines() if "nimo repro --apk" in ln]
+    assert repro_lines, "no nimo repro invocation found in demo.yml"
+    for ln in repro_lines:
+        assert "case " in ln and "esac" in ln, (
+            "exit-code handling must sit on the SAME line as the invocation; "
+            f"offending line: {ln.strip()[:90]}"
+        )
+        assert "code=0;" in ln, "initialise $code on the same line"
+        assert 'exit "$code"' in ln, (
+            "an unrecognised exit code must still fail the job"
+        )
