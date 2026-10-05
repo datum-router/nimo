@@ -75,14 +75,33 @@ def _metrics(rep: dict, disc: dict | None, sweep: dict,
         "names": sorted(seen)[:50],
     }
 
-    steps_taken = repro.get("steps_taken") or repro.get("steps") or 0
+    # Both halves of the engine do work worth counting, and they count
+    # DIFFERENT things: the repro loop walks a fixed step budget, the crawler
+    # takes as many actions as its budget allows. Reporting only repro steps
+    # left this unmeasured for every discover-mode run even though the crawl
+    # had driven the device -- verified on live run #35, which reported
+    # 0 steps after a real 358s crawl.
     off = repro.get("off_app_steps")
-    steps = {
-        "measured": bool(repro),
-        "taken": steps_taken,
-        "in_app": repro.get("steps_in_app"),
-        "off_app": len(off) if isinstance(off, list) else off,
-    }
+    if repro:
+        steps = {
+            "measured": True,
+            "basis": "repro steps",
+            "taken": repro.get("steps_taken") or repro.get("steps") or 0,
+            "in_app": repro.get("steps_in_app"),
+            "off_app": len(off) if isinstance(off, list) else off,
+        }
+    elif disc:
+        steps = {
+            "measured": True,
+            "basis": "crawl actions",
+            "taken": disc.get("actions_taken") or 0,
+            "in_app": None,
+            "off_app": None,
+            "deep_links_fired": disc.get("deep_links_fired") or 0,
+        }
+    else:
+        steps = {"measured": False, "basis": None, "taken": 0,
+                 "in_app": None, "off_app": None}
 
     return {
         "activity_coverage": activity,
