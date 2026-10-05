@@ -265,6 +265,25 @@ fi
 timeout 30 adb -s "$ANDROID_SERIAL" exec-out screencap -p > final.png 2>/dev/null || true
 cd /tmp/live
 mkdir -p "run-$RUN_ID"
+# Attribute the run to the account that dispatched it, so the hosted page
+# can show a user their own history. GITHUB_ACTOR is set by Actions and is
+# the dispatcher, not the repo owner.
+#
+# This is ATTRIBUTION, not isolation: this branch is public. Per-tenant
+# privacy needs the hosted API, not a static page reading a public branch.
+python3 - <<'PYEOF'
+import json, os
+try:
+    s = json.load(open(os.environ["GITHUB_WORKSPACE"] + "/summary.json"))
+except Exception:
+    s = {}
+s["actor"] = os.environ.get("GITHUB_ACTOR", "")
+s["run_id"] = os.environ.get("GITHUB_RUN_ID", "")
+s["run_url"] = (os.environ.get("GITHUB_SERVER_URL", "") + "/"
+                + os.environ.get("GITHUB_REPOSITORY", "") + "/actions/runs/"
+                + os.environ.get("GITHUB_RUN_ID", ""))
+json.dump(s, open(os.environ["GITHUB_WORKSPACE"] + "/summary.json", "w"), indent=2)
+PYEOF
 cp "$GITHUB_WORKSPACE/summary.json" "run-$RUN_ID/summary.json"
 cp "$GITHUB_WORKSPACE/final.png" "run-$RUN_ID/final.png" 2>/dev/null || true
 cp "$GITHUB_WORKSPACE/pipeline.log" "run-$RUN_ID/pipeline.log" 2>/dev/null || true

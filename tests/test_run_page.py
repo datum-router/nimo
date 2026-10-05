@@ -268,3 +268,154 @@ def test_device_panel_says_what_is_actually_on_screen():
     """
     html = RUN_PAGE.read_text(encoding="utf-8")
     assert "this is the launcher, not your app yet" in html
+
+
+# ---------------------------------------------------------------------------
+# Landing page call-to-action targets
+# ---------------------------------------------------------------------------
+
+LANDING = REPO_ROOT / "docs" / "index.html"
+
+
+def test_primary_calls_to_action_open_the_product_not_the_repo():
+    """"Get started" and "Try the demo" both pointed at github.com.
+
+    The hosted run page IS the demo; sending a prospective user to a source
+    tree instead is the single worst link on the page.
+    """
+    html = LANDING.read_text(encoding="utf-8")
+    hero = html.split('class="cta"', 1)[1][:600]
+    assert 'href="run.html"' in hero, (
+        "the hero's primary action must open the run page"
+    )
+    nav = re.search(r"<nav.*?</nav>", html, re.S).group(0)
+    cta = re.search(r'<a class="btn[^"]*navcta"[^>]*href="([^"]+)"', nav)
+    assert cta and cta.group(1) == "run.html", (
+        f"the nav CTA points at {cta.group(1) if cta else 'nothing'}"
+    )
+    # GitHub is still linked -- as an ordinary link, not as the main action.
+    assert "github.com/datum-router/nimo" in html
+
+
+def test_the_nav_cta_is_actually_visible():
+    """It was #0F1111 on the #232F3E nav: 1.27:1."""
+    html = LANDING.read_text(encoding="utf-8")
+    nav = re.search(r"<nav.*?</nav>", html, re.S).group(0)
+    assert "style=" not in re.search(
+        r'<a class="btn[^"]*navcta"[^>]*>', nav).group(0), (
+        "the nav CTA must be styled by a rule the contrast audit can see, "
+        "not by an inline style it cannot"
+    )
+    assert ".navcta{" in html, "the nav CTA needs its own visible treatment"
+
+
+# ---------------------------------------------------------------------------
+# Verdict status
+# ---------------------------------------------------------------------------
+
+def test_every_verdict_maps_to_a_finished_pill_style():
+    """The pill showed the orange RUNNING style for most finished runs.
+
+    It was `clean ? done : failed ? fail : "run"`, so `reproduced` and
+    `not_reproduced` -- the two most common outcomes -- rendered a finished
+    run as though it were still going. That is what "verdict status is
+    broken" looked like.
+    """
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    block = re.search(r"const titles = \{(.*?)\};", html, re.S)
+    assert block, "verdict table not found"
+    table = block.group(1)
+    for verdict in ("bugs_found", "reproduced", "clean", "not_reproduced",
+                    "inconclusive", "failed", "backend_unavailable"):
+        assert verdict in table, f"{verdict} has no verdict mapping"
+    # Each entry must carry a pill class, and never the running one.
+    entries = re.findall(r'\[\s*"[^"]*",\s*"(v-[a-z]+)",\s*"([a-z]+)"\s*\]', table)
+    assert len(entries) >= 7, f"expected a pill class per verdict, got {entries}"
+    for _, pill in entries:
+        assert pill in {"done", "fail", "warn"}, (
+            f"pill class {pill!r} is not a finished-run style"
+        )
+    assert ".pill.warn{" in html, "the amber finished style must exist"
+
+
+def test_verdict_rendering_survives_a_missing_verdict():
+    """summary.json can land without a verdict; the card must not throw."""
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert 'const verdict = s.verdict || "failed"' in html, (
+        "s.verdict.replace() on undefined would throw and render nothing"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Detailed report
+# ---------------------------------------------------------------------------
+
+def test_detailed_report_covers_the_requested_metrics():
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    for label in ("Activity coverage", "Code coverage", "Screens reached",
+                  "Steps driven", "Deep links / intents", "AI guidance"):
+        assert label in html, f"detailed report is missing {label!r}"
+    assert "renderMetrics" in html and 'id="r-metrics"' in html
+
+
+def test_unmeasured_metrics_say_so_rather_than_showing_zero():
+    """A run with no instrumented build has NO line coverage.
+
+    Printing 0% for it is a false statement about the app, not a missing
+    number -- the same mistake the coverage donut made.
+    """
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert 'measured ? big : "not measured"' in html, (
+        "each tile must render not-measured from its own flag"
+    )
+    assert ".metric.unmeasured{" in html
+
+
+# ---------------------------------------------------------------------------
+# Session + per-user history
+# ---------------------------------------------------------------------------
+
+def test_session_persists_and_can_be_ended():
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "SESSION_KEY" in html and "loadSession()" in html, (
+        "the signed-in identity must survive a reload"
+    )
+    assert "function signOut()" in html, "a session must be endable"
+    assert 'localStorage.removeItem("nimo_gh_token")' in html, (
+        "signing out must drop the token too, not just the display name"
+    )
+
+
+def test_history_is_filtered_to_the_signed_in_account():
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "triggering_actor" in html, (
+        "runs must be attributed to the account that dispatched them, not "
+        "to the repository owner"
+    )
+    assert "loadHistory" in html and 'id="h-table"' in html
+
+
+def test_history_does_not_claim_privacy_it_cannot_provide():
+    """The live branch is public; this is attribution, not isolation.
+
+    Implying otherwise would be the most damaging kind of UI copy in a
+    product whose whole pitch is that it does not overstate what it knows.
+    """
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "shareable, not private" in html, (
+        "the history panel must state that results are published publicly"
+    )
+
+
+def test_a_past_run_can_be_reopened_by_url():
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "openRunFromQuery" in html and 'URLSearchParams' in html, (
+        "history rows link to ?run=<id>; that must actually open the result"
+    )
+
+
+def test_runs_are_attributed_in_the_published_summary():
+    sh = (REPO_ROOT / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    assert "GITHUB_ACTOR" in sh, (
+        "the published summary must record who dispatched the run"
+    )

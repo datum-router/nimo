@@ -36,6 +36,14 @@
   .btn:hover{transform:translateY(-1px)}
   .btn-acc{background:var(--acc);color:#0F1111}
   .btn-acc:hover{box-shadow:0 8px 30px rgba(255,153,0,.40)}
+  /* The nav CTA sits on the navy bar, so it needs its own treatment: the
+     Amazon cart-button yellow reads as the primary action and gives 13.6:1
+     against the dark label. The previous link was --txt (#0F1111) on the
+     navy nav -- 1.27:1, which is why it could not be seen at all. */
+  .navcta{background:linear-gradient(var(--yellow),var(--yellow2));
+    color:#0F1111;border:1px solid #FCD200;font-weight:700;white-space:nowrap;
+    box-shadow:0 1px 3px rgba(15,17,17,.3)}
+  .navcta:hover{background:linear-gradient(#F7CA00,#F0B800);box-shadow:none}
   .btn-ghost{border:1px solid var(--line);color:var(--txt)}
   .btn-ghost:hover{border-color:var(--acc)}
   .btn-sm{padding:9px 18px;font-size:14px}
@@ -157,10 +165,9 @@
       <a href="#pipeline">Pipeline</a>
       <a href="#how">How it works</a>
       <a href="#demos">Demos</a>
-      <a href="run.html" style="color:var(--txt);border:1px solid var(--acc);border-radius:99px;padding:7px 16px">▶ Run a test</a>
       <a href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">GitHub</a>
     </div>
-    <a class="btn btn-acc btn-sm" href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">Get started</a>
+    <a class="btn btn-acc btn-sm navcta" href="run.html">&#9654;&nbsp; Run a test</a>
   </div>
 </nav>
 
@@ -171,7 +178,7 @@
       <h1>You ship fast.<br><span class="grad">We find what broke.</span></h1>
       <p class="sub">People are building apps quicker than ever — with or without AI slop. nimo is here to catch what slipped through: send us the bug report your customer gave you plus the APK and get back a verified reproduction, or just send the APK and nimo will explore it, hunt for bugs, and report back with results.</p>
       <div class="cta">
-        <a class="btn btn-acc" href="https://github.com/datum-router/nimo" target="_blank" rel="noopener">Try the demo</a>
+        <a class="btn btn-acc" href="run.html">&#9654;&nbsp; Run a test now</a>
         <a class="btn btn-ghost" href="#how">How it works</a>
       </div>
     </div>

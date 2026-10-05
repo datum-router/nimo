@@ -227,3 +227,69 @@ def test_a_background_is_never_set_without_its_text_colour(page: str):
     assert not offenders, (
         f"{page}: dark surfaces that draw text with an inherited colour:\n  "
         + "\n  ".join(offenders))
+
+
+# ---------------------------------------------------------------------------
+# Inline styles
+# ---------------------------------------------------------------------------
+# The checks above parse <style> blocks only, and that gap shipped a real
+# bug: the nav's "Run a test" link carried style="color:var(--txt)" on the
+# navy bar -- #0F1111 on #232F3E, 1.27:1, invisible. Every stylesheet rule
+# passed while the most important call to action could not be read.
+
+DARK_CONTAINERS = ("nav", "footer")
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_inline_text_colours_inside_dark_chrome_are_readable(page: str):
+    html = (DOCS / page).read_text(encoding="utf-8")
+    css = "\n".join(re.findall(r"<style>(.*?)</style>", html, re.S))
+    variables = _variables(css)
+    # The nav and footer are navy; resolve their actual background.
+    failures = []
+    for container in DARK_CONTAINERS:
+        m = re.search(rf"<{container}[^>]*>(.*?)</{container}>", html, re.S)
+        if not m:
+            continue
+        rule = re.search(rf"\n\s*{container}\{{([^}}]*)\}}", css)
+        bg = None
+        if rule:
+            decl = dict((k.strip(), v.strip()) for k, v in
+                        re.findall(r"([\w-]+)\s*:\s*([^;]+)", rule.group(1)))
+            raw = decl.get("background") or decl.get("background-color")
+            if raw:
+                bg = _resolve(raw, variables)
+        if not bg:
+            continue
+        for style in re.findall(r'style="([^"]*)"', m.group(1)):
+            cm = re.search(r"color\s*:\s*([^;]+)", style)
+            if not cm:
+                continue
+            fg = _resolve(cm.group(1), variables)
+            if not fg:
+                continue
+            ratio = _contrast(fg, bg)
+            if ratio < AA_NORMAL:
+                failures.append(
+                    f"<{container}> inline color {cm.group(1).strip()} on "
+                    f"{bg} = {ratio:.2f}:1")
+    assert not failures, (
+        f"{page}: unreadable inline colours inside dark chrome:\n  "
+        + "\n  ".join(failures))
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_no_inline_style_uses_body_text_colour_on_chrome(page: str):
+    """Belt and braces: --txt means "text on a light surface".
+
+    Using it inside the navy nav or footer is always wrong, whatever the
+    computed ratio happens to be after a palette tweak.
+    """
+    html = (DOCS / page).read_text(encoding="utf-8")
+    for container in DARK_CONTAINERS:
+        m = re.search(rf"<{container}[^>]*>(.*?)</{container}>", html, re.S)
+        if not m:
+            continue
+        assert "color:var(--txt)" not in m.group(1).replace(" ", ""), (
+            f"{page}: <{container}> uses the light-surface text colour inline"
+        )
