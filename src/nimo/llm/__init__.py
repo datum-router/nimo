@@ -10,6 +10,7 @@ CI smoke tests and offline demos (the VALOR deterministic-fallback path).
 """
 from __future__ import annotations
 
+import json
 import os
 
 from .client import LLMClient, LLMUnavailable
@@ -38,20 +39,111 @@ def degradation_reason() -> str:
 
 
 class NullBackend:
-    """Deterministic no-LLM backend. Returns a fixed 'do nothing / back'
-    action so the loop runs end-to-end with no network and no key. The
-    engine's deterministic crawler (VALOR path) does the real exploration;
-    this only satisfies the `LLMClient.chat` interface in CI."""
+    """Deterministic explorer: no network, no key, but REAL exploration.
+
+    This used to return a fixed ``{"action": "back"}`` on every call. The
+    consequence was measured in CI run #28: with the backend degraded, the
+    repro loop pressed Back twenty-five times, burning 82 seconds of booted
+    emulator to visit nothing. The run was honest -- it reported
+    ``not_reproduced`` and labelled itself unguided -- but the evidence
+    behind that verdict was worthless, because no screen past the launch
+    activity was ever opened.
+
+    So the fallback now explores. It is a frontier walk over the UI dump the
+    caller hands it via :meth:`observe`:
+
+    * tap a clickable element this run has not already tapped;
+    * when a screen offers nothing new, scroll to reveal more (twice);
+    * when a scrolled screen is still exhausted, go Back and try elsewhere.
+
+    Each element is remembered by identity (resource id, label, class) rather
+    than by screen position, so a list that reflows between dumps does not
+    look like new ground.
+
+    This is navigation only -- it cannot invent a finding. A ``reproduced``
+    verdict comes exclusively from the oracle observing a real
+    ``FATAL EXCEPTION``, which consults no LLM, so a crash found while
+    walking deterministically is exactly as real as one found under AI
+    guidance. What is lost is *targeting*: this walks broadly instead of
+    pursuing the reported reproduction path, which is why a degraded run is
+    still labelled everywhere it surfaces.
+    """
 
     base_url = "null://deterministic"
     model = "null"
 
+    #: How many times to scroll one screen before giving up on it.
+    SCROLLS_PER_SCREEN = 2
+
+    def __init__(self) -> None:
+        self._elements: list[dict] = []
+        self._tapped: set[str] = set()
+        self._scrolls: dict[str, int] = {}
+
+    # -- observation ------------------------------------------------------
+    def observe(self, elements) -> None:
+        """Record the current screen's UI dump.
+
+        Called by the engine loop before each decision. Without it the
+        explorer is blind and falls back to scroll/back, so a caller that
+        does not observe gets the old (useless) behaviour rather than a
+        crash -- which is why this is a separate, optional method instead of
+        a change to the ``chat`` signature every backend shares.
+        """
+        self._elements = [e for e in (elements or []) if isinstance(e, dict)]
+
+    # -- internals --------------------------------------------------------
+    @staticmethod
+    def _identity(el: dict) -> str:
+        """Stable identity for one element, independent of its position."""
+        return "|".join((
+            str(el.get("resource_id") or ""),
+            str(el.get("label") or ""),
+            str(el.get("class") or ""),
+        ))
+
+    def _screen(self) -> str:
+        """Signature of the current screen, from what it contains."""
+        return "/".join(sorted(self._identity(e) for e in self._elements))
+
+    def _targets(self) -> list[dict]:
+        """Clickable, labelled elements worth tapping, untouched first."""
+        out = []
+        for el in self._elements:
+            if not el.get("clickable"):
+                continue
+            if not str(el.get("label") or "").strip():
+                continue  # unlabelled: the executor could not resolve it
+            out.append(el)
+        return out
+
+    # -- decision ---------------------------------------------------------
     def chat(self, messages, temperature: float = 0.0,
              response_format: dict | None = None) -> str:
-        # A valid, inert action the executor understands. The deterministic
-        # crawler never actually consults this unless forced; when it does,
-        # 'back' is the safe no-progress action.
-        return '{"action": "back"}'
+        screen = self._screen()
+        for el in self._targets():
+            ident = self._identity(el)
+            if ident in self._tapped:
+                continue
+            self._tapped.add(ident)
+            return json.dumps({
+                "action": "tap",
+                "label": el.get("label"),
+                "why": "deterministic frontier: first visit to this control",
+            })
+
+        seen = self._scrolls.get(screen, 0)
+        if seen < self.SCROLLS_PER_SCREEN:
+            self._scrolls[screen] = seen + 1
+            return json.dumps({
+                "action": "swipe_up",
+                "why": "deterministic frontier: reveal controls below the fold",
+            })
+
+        return json.dumps({
+            "action": "back",
+            "why": "deterministic frontier: screen exhausted, backtracking",
+        })
 
 
 class ResilientBackend:
@@ -85,6 +177,30 @@ class ResilientBackend:
         self._null = NullBackend()
         self.degraded = False
         self.degraded_reason = ""
+        # First contact must not stall the device loop.
+        #
+        # LLMClient defaults to 5 retries with exponential backoff, which is
+        # ~48s before it gives up -- measured as exactly that in CI run #28,
+        # where the first call burned 48s of booted emulator before the
+        # fallback took over. Retrying that hard is redundant HERE, because
+        # this wrapper already provides the resilience: degrading is instant
+        # and costs correctness nothing a long retry would have saved.
+        #
+        # A KEYED provider is left alone. There, degrading forfeits the real
+        # verdicts the operator is paying for, so riding out a blip is worth
+        # the wait; an anonymous free tier offers no such guarantee.
+        if not getattr(primary, "api_key", ""):
+            primary.retries = min(getattr(primary, "retries", 5), 2)
+
+    def observe(self, elements) -> None:
+        """Keep the fallback's map current even while the primary is healthy.
+
+        Observations must flow through on EVERY step, not just after
+        degrading: the explorer's value is knowing which controls were
+        already visited, and a map that only starts filling at the moment of
+        failure would re-walk everything the guided half of the run covered.
+        """
+        self._null.observe(elements)
 
     @property
     def base_url(self) -> str:

@@ -87,3 +87,133 @@ def test_dispatch_errors_surface_github_reason(page_source: str) -> None:
     assert "Enable workflow" in page_source or "disabled" in page_source, (
         "no hint pointing at a disabled workflow, the most common 422 cause"
     )
+
+
+# ---------------------------------------------------------------------------
+# Live log console
+# ---------------------------------------------------------------------------
+# Before this existed the page showed a screenshot and a screen count but no
+# way to see WHAT nimo was doing, because pipeline.log was published only
+# after the run finished. "Better visibility" is mostly this panel.
+
+def test_page_streams_the_device_log_live():
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "logTail" in html, "the page must stream the device log"
+    assert "pipeline.log" in html and "logview" in html
+    assert "logTail();" in html, (
+        "logTail must be wired into the polling loop, not merely defined"
+    )
+
+
+def test_harness_publishes_the_log_during_the_run():
+    """Publishing only at the end is what made the log useless while waiting."""
+    sh = (REPO_ROOT / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    pusher = sh.split("PUSHER=$!")[0]
+    assert "pipeline.log" in pusher, (
+        "the background publisher must copy the log every cycle, not just "
+        "once the run is over"
+    )
+    assert "tail -c" in pusher, (
+        "the published log must be size-capped: a pathological run would "
+        "otherwise force-push a huge file to the live branch every cycle"
+    )
+
+
+def test_log_noise_is_filtered_but_never_discarded():
+    """Evidence must stay reachable.
+
+    The emulator's swiftshader spam and Android's 20-line SecurityException
+    stack traces bury the signal, so they are hidden BY DEFAULT -- but a
+    product whose moat is honesty must not make evidence unreachable, so the
+    raw view is one checkbox away and the count of hidden lines is shown.
+    """
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "LOG_NOISE" in html and "ColorBuffer" in html
+    assert 'id="log-raw"' in html, "a raw view must remain available"
+    assert "noise lines hidden" in html, (
+        "the page must disclose that it is hiding lines, not hide silently"
+    )
+
+
+def test_log_filters_ignore_the_timestamp_prefix():
+    """Lines carry "[mm:ss] "; patterns must match the message, not the clock.
+
+    Without stripping it, every `^`-anchored pattern silently stops matching
+    and the console degrades to unclassified grey text with no filtering --
+    a regression no other assertion here would catch.
+    """
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "LOG_TS" in html, "the timestamp prefix must be stripped before matching"
+    assert html.count("replace(LOG_TS") >= 2, (
+        "both the classifier and the noise filter must strip the prefix"
+    )
+
+
+def test_log_view_does_not_yank_the_scroll_position():
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "atBottom" in html, (
+        "the console must only auto-follow when already at the tail, or it "
+        "fights a user reading back through the log"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Mode cost disclosure
+# ---------------------------------------------------------------------------
+
+def test_modes_disclose_their_time_cost():
+    """The page defaulted to the SLOWEST mode and showed no duration.
+
+    `pipeline` runs Path A then Path B: measured at 7.6 min in CI run #28,
+    against ~3 min for `repro` alone. A user who picked the default and then
+    waited eight minutes had been given no way to know that was the choice
+    they were making.
+    """
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    modes = re.search(r'<div class="modes">(.*?)</div>', html, re.S)
+    assert modes, "mode selector not found"
+    block = modes.group(1)
+    for mode in ("repro", "discover", "pipeline"):
+        assert f'value="{mode}"' in block, f"{mode} mode missing"
+    assert block.count("min ·") >= 3, (
+        "every mode must state roughly how long it takes"
+    )
+    checked = re.search(r'value="(\w+)" checked', block)
+    assert checked and checked.group(1) == "repro", (
+        "the fastest mode must be the default; 'pipeline' made the first "
+        "experience an eight-minute wait"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Theme
+# ---------------------------------------------------------------------------
+
+def test_page_uses_the_light_amazon_palette():
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    for colour in ("#232F3E", "#FF9900", "#0F1111", "#EAEDED", "#007185"):
+        assert colour in html, f"Amazon palette colour {colour} missing"
+
+
+def test_no_dark_surfaces_leak_back_in():
+    """The previous theme's near-black backgrounds must stay gone.
+
+    Checked as literals because a reintroduced dark card would still render
+    'fine' in isolation -- only side by side with the light chrome does it
+    look broken, which no automated check would otherwise notice.
+    """
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    banned = ["#0b0e17", "#101425", "#05070d", "#1e2540", "#e8ecf8", "#7c6cf0"]
+    found = [c for c in banned if c in html.lower()]
+    assert not found, f"dark-theme colours still present: {found}"
+    body = re.search(r"\nbody\{([^}]*)\}", html)
+    assert body and "--page" in body.group(1), (
+        "body must use the light page background variable"
+    )
+
+
+def test_animation_respects_reduced_motion():
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "prefers-reduced-motion" in html, (
+        "the live view animates; it must honour the OS setting"
+    )

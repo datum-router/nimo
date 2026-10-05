@@ -59,7 +59,9 @@ try:
     if m: visited = int(m[-1])
     m = re.search(r"map: (\d+) activities", txt)
     if m: total = int(m.group(1))
-    ph = re.findall(r"^\[nimo\] (Path|Analyzing|analyzing|sweep done|crawl done|intent sweep)[^\n]*",
+    # Lines now carry an elapsed-time prefix ("[01:23] [nimo] ..."), so the
+    # phase match must not be anchored hard to the start of the line.
+    ph = re.findall(r"^(?:\[\d+:\d+\] )?\[nimo\] (Path|Analyzing|analyzing|sweep done|crawl done|intent sweep)[^\n]*",
                     txt, re.M)
     if ph: phase = ph[-1].strip()
 except OSError:
@@ -76,7 +78,13 @@ json.dump(d, open(p_path, "w"))
 EOF
 }
 
-# background: every 20s push progress.json + latest screenshot to live branch
+# background: every 10s push progress.json + latest screenshot + the log tail
+#
+# The log used to be published only after the run finished, so the operator
+# watching the page had a screenshot and a screen count but no way to see
+# WHAT nimo was doing until it was over. The tail is copied every cycle and
+# the page streams it. Capped so a pathological run cannot push a 100 MB
+# file to the live branch every ten seconds.
 (
   cd /tmp/live
   write_progress
@@ -84,10 +92,11 @@ EOF
   git commit -qm "run $RUN_ID progress" || true
   git push -q -f origin "$LIVE_BRANCH" || true
   while kill -0 $PPID 2>/dev/null; do
-    sleep 20
+    sleep 10
     write_progress
     # timeout: a wedged adb (sick emulator) must not stall the live feed
     timeout 30 adb -s "$ANDROID_SERIAL" exec-out screencap -p > "run-$RUN_ID/latest.png" 2>/dev/null || true
+    tail -c 262144 "$GITHUB_WORKSPACE/pipeline.log" > "run-$RUN_ID/pipeline.log" 2>/dev/null || true
     git add "run-$RUN_ID" 2>/dev/null
     git commit -q --amend --no-edit || git commit -qm "run $RUN_ID progress"
     git push -q -f origin "$LIVE_BRANCH" || true
@@ -128,7 +137,28 @@ fi
 # Watchdog: a wedged adb (sick emulator) must never burn the whole
 # 6-hour job timeout. Kill the pipeline past the user's budget plus
 # slack; the honest "failed" fallback below still reports the outcome.
-timeout "$((MAXMIN + 10))m" nimo pipeline "${ARGS[@]}" 2>&1 | tee pipeline.log
+# Elapsed-time prefix on every line.
+#
+# "Why is the run slow?" was unanswerable from this log: it had no clock, so
+# the 170s discovery crawl and the 48s the backend used to spend retrying
+# were indistinguishable from fast steps. Each line now carries [mm:ss] since
+# the pipeline started, which makes the expensive phase obvious on the
+# results page without opening the Actions tab.
+#
+# Done in Python, not `awk`: systime()/strftime() are gawk extensions and the
+# Ubuntu runners ship mawk, where they do not exist. python3 is guaranteed
+# here -- nimo itself is Python.
+#
+# PIPESTATUS[0] still refers to `timeout`/nimo, so the exit-code contract
+# below is unaffected by adding a stage to this pipe.
+timeout "$((MAXMIN + 10))m" nimo pipeline "${ARGS[@]}" 2>&1 \
+  | python3 -u -c '
+import sys, time
+t0 = time.time()
+for line in sys.stdin:
+    e = int(time.time() - t0)
+    sys.stdout.write("[%02d:%02d] %s" % (e // 60, e % 60, line))
+' | tee pipeline.log
 STATUS=${PIPESTATUS[0]}
 if [ "$STATUS" -eq 124 ]; then
   echo "watchdog: pipeline exceeded $((MAXMIN + 10)) minutes, killed"
