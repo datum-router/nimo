@@ -1,0 +1,125 @@
+[00:00] [nimo] preflight...
+[00:00] [nimo] preflight warning: targets API 11: Android 14+ refuses to install apps targeting < 23 — use android_version 13 or lower
+[00:00] [nimo] analyzing APK...
+[00:00] [nimo] Notepad (bander.notepad v1.06)
+[00:00] [nimo] map: 7 activities, 0 deep links, 1 permissions
+[00:00] [nimo] device: emulator-5554
+[00:00] [nimo] Path A: targeted bug reproduction
+[00:00] [nimo] device: emulator-5554 | mode: repro
+[00:03] [nimo] llm: https://text.pollinations.ai/openai / openai
+[00:13] [nimo] LLM backend lost mid-run: LLM backend unavailable: https://text.pollinations.ai/openai (model openai) — HTTP 402 Payment Required: {}. Point nimo at a backend you control via NIMO_BASE_URL / NIMO_API_KEY / NIMO_MODEL, or set NIMO_BACKEND=null for a deterministic device-only run.
+[00:13] [nimo] continuing with deterministic exploration (no AI guidance). Crash detection is unaffected: the oracle needs no LLM.
+[00:13] [nimo] step 1: tap OK  (deterministic frontier: first visit to this control)
+[00:16] [nimo] step 2: tap More options  (deterministic frontier: first visit to this control)
+[00:19] [nimo] step 3: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:23] [nimo] step 4: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:27] [nimo] step 5: back  (deterministic frontier: screen exhausted, backtracking)
+[00:30] [nimo] step 6: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:34] [nimo] step 7: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:37] [nimo] step 8: back  (deterministic frontier: screen exhausted, backtracking)
+[00:38] [nimo] step 8 left the app (now com.android.launcher3) — relaunching bander.notepad
+[00:43] [nimo] step 9: back  (deterministic frontier: screen exhausted, backtracking)
+[00:44] [nimo] step 9 left the app (now com.android.launcher3) — relaunching bander.notepad
+[00:48] [nimo] step 10: back  (deterministic frontier: screen exhausted, backtracking)
+[00:49] [nimo] step 10 left the app (now com.android.launcher3) — relaunching bander.notepad
+[00:54] [nimo] step 11: back  (deterministic frontier: screen exhausted, backtracking)
+[00:55] [nimo] step 11 left the app (now com.android.launcher3) — relaunching bander.notepad
+[00:59] [nimo] step 12: back  (deterministic frontier: screen exhausted, backtracking)
+[01:01] [nimo] step 12 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:05] [nimo] step 13: back  (deterministic frontier: screen exhausted, backtracking)
+[01:06] [nimo] step 13 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:10] [nimo] step 14: back  (deterministic frontier: screen exhausted, backtracking)
+[01:12] [nimo] step 14 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:16] [nimo] step 15: back  (deterministic frontier: screen exhausted, backtracking)
+[01:17] [nimo] step 15 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:21] [nimo] step 16: back  (deterministic frontier: screen exhausted, backtracking)
+[01:23] [nimo] step 16 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:27] [nimo] step 17: back  (deterministic frontier: screen exhausted, backtracking)
+[01:28] [nimo] step 17 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:32] [nimo] step 18: back  (deterministic frontier: screen exhausted, backtracking)
+[01:34] [nimo] step 18 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:38] [nimo] step 19: back  (deterministic frontier: screen exhausted, backtracking)
+[01:39] [nimo] step 19 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:43] [nimo] step 20: back  (deterministic frontier: screen exhausted, backtracking)
+[01:45] [nimo] step 20 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:49] [nimo] step 21: back  (deterministic frontier: screen exhausted, backtracking)
+[01:50] [nimo] step 21 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:54] [nimo] step 22: back  (deterministic frontier: screen exhausted, backtracking)
+[01:56] [nimo] step 22 left the app (now com.android.launcher3) — relaunching bander.notepad
+[02:00] [nimo] step 23: back  (deterministic frontier: screen exhausted, backtracking)
+[02:01] [nimo] step 23 left the app (now com.android.launcher3) — relaunching bander.notepad
+[02:05] [nimo] step 24: back  (deterministic frontier: screen exhausted, backtracking)
+[02:07] [nimo] step 24 left the app (now com.android.launcher3) — relaunching bander.notepad
+[02:11] [nimo] step 25: back  (deterministic frontier: screen exhausted, backtracking)
+[02:12] [nimo] step 25 left the app (now com.android.launcher3) — relaunching bander.notepad
+[02:15] [nimo] verdict: not_reproduced after 25 steps
+[02:15] [nimo] report: out/repro/repro_report.json
+[02:15] [nimo] Path A verdict: not_reproduced
+[02:15] [nimo] Path B: systematic discovery crawl
+[02:15] [nimo] intent sweep: firing enumerated intent targets
+[04:06] [nimo] sweep done: 2 activities reached via intents, 3 labeled unreachable
+[04:06] [nimo] autofill: no email/password in auth config — autofill not configured
+[04:08] [crawl] visiting bander.notepad.NoteList (1/7)
+[04:36] [crawl] bander.notepad.NoteEdit redirected to com.android.launcher3/.uioverrides.QuickstepLauncher — not counted
+[04:38] [crawl] direct launch failed for bander.notepad.NoteImport: adb shell am start -n bander.notepad/.NoteImport failed: Exception occurred while executing 'start':
+[04:38] java.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=bander.notepad/.NoteImport } from null (pid=5635, uid=2000) not exported from uid 10126
+[04:38] 	at com.android.server.wm.ActivityTaskSupervisor.checkStartAnyActivityPermission(ActivityTaskSupervisor.java:1110)
+[04:38] 	at com.android.server.wm.ActivityStarter.executeRequest(ActivityStarter.java:1024)
+[04:38] 	at com.android.server.wm.ActivityStarter.execute(ActivityStarter.java:713)
+[04:38] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1292)
+[04:38] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1233)
+[04:38] 	at com.android.server.am.ActivityManagerService.startActivityAsUserWithFeature(ActivityManagerService.java:3139)
+[04:38] 	at com.android.server.am.ActivityManagerShellCommand.runStartActivity(ActivityManagerShellCommand.java:603)
+[04:38] 	at com.android.server.am.ActivityManagerShellCommand.onCommand(ActivityManagerShellCommand.java:208)
+[04:38] 	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+[04:38] 	at android.os.ShellCommand.exec(ShellCommand.java:38)
+[04:38] 	at com.android.server.am.ActivityManagerService.onShellCommand(ActivityManagerService.java:9197)
+[04:38] 	at android.os.Binder.shellCommand(Binder.java:1049)
+[04:38] 	at android.os.Binder.onTransact(Binder.java:877)
+[04:38] 	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:4731)
+[04:38] 	at com.android.server.am.ActivityManagerService.onTransact(ActivityManagerService.java:2630)
+[04:38] 	at android.os.Binder.execTransactInternal(Binder.java:1285)
+[04:38] 	at android.os.Binder.execTransact(Binder.java:1244)
+[04:39] [crawl] direct launch failed for bander.notepad.Preferences: adb shell am start -n bander.notepad/.Preferences failed: Exception occurred while executing 'start':
+[04:39] java.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=bander.notepad/.Preferences } from null (pid=5650, uid=2000) not exported from uid 10126
+[04:39] 	at com.android.server.wm.ActivityTaskSupervisor.checkStartAnyActivityPermission(ActivityTaskSupervisor.java:1110)
+[04:39] 	at com.android.server.wm.ActivityStarter.executeRequest(ActivityStarter.java:1024)
+[04:39] 	at com.android.server.wm.ActivityStarter.execute(ActivityStarter.java:713)
+[04:39] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1292)
+[04:39] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1233)
+[04:39] 	at com.android.server.am.ActivityManagerService.startActivityAsUserWithFeature(ActivityManagerService.java:3139)
+[04:39] 	at com.android.server.am.ActivityManagerShellCommand.runStartActivity(ActivityManagerShellCommand.java:603)
+[04:39] 	at com.android.server.am.ActivityManagerShellCommand.onCommand(ActivityManagerShellCommand.java:208)
+[04:39] 	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+[04:39] 	at android.os.ShellCommand.exec(ShellCommand.java:38)
+[04:39] 	at com.android.server.am.ActivityManagerService.onShellCommand(ActivityManagerService.java:9197)
+[04:39] 	at android.os.Binder.shellCommand(Binder.java:1049)
+[04:39] 	at android.os.Binder.onTransact(Binder.java:877)
+[04:39] 	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:4731)
+[04:39] 	at com.android.server.am.ActivityManagerService.onTransact(ActivityManagerService.java:2630)
+[04:39] 	at android.os.Binder.execTransactInternal(Binder.java:1285)
+[04:39] 	at android.os.Binder.execTransact(Binder.java:1244)
+[04:43] [crawl] bander.notepad.NoteSearchResults redirected to com.android.launcher3/.uioverrides.QuickstepLauncher — not counted
+[04:45] [crawl] direct launch failed for bander.notepad.NoteExport: adb shell am start -n bander.notepad/.NoteExport failed: Exception occurred while executing 'start':
+[04:45] java.lang.SecurityException: Permission Denial: starting Intent { flg=0x10000000 cmp=bander.notepad/.NoteExport } from null (pid=5734, uid=2000) not exported from uid 10126
+[04:45] 	at com.android.server.wm.ActivityTaskSupervisor.checkStartAnyActivityPermission(ActivityTaskSupervisor.java:1110)
+[04:45] 	at com.android.server.wm.ActivityStarter.executeRequest(ActivityStarter.java:1024)
+[04:45] 	at com.android.server.wm.ActivityStarter.execute(ActivityStarter.java:713)
+[04:45] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1292)
+[04:45] 	at com.android.server.wm.ActivityTaskManagerService.startActivityAsUser(ActivityTaskManagerService.java:1233)
+[04:45] 	at com.android.server.am.ActivityManagerService.startActivityAsUserWithFeature(ActivityManagerService.java:3139)
+[04:45] 	at com.android.server.am.ActivityManagerShellCommand.runStartActivity(ActivityManagerShellCommand.java:603)
+[04:45] 	at com.android.server.am.ActivityManagerShellCommand.onCommand(ActivityManagerShellCommand.java:208)
+[04:45] 	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+[04:45] 	at android.os.ShellCommand.exec(ShellCommand.java:38)
+[04:45] 	at com.android.server.am.ActivityManagerService.onShellCommand(ActivityManagerService.java:9197)
+[04:45] 	at android.os.Binder.shellCommand(Binder.java:1049)
+[04:45] 	at android.os.Binder.onTransact(Binder.java:877)
+[04:45] 	at android.app.IActivityManager$Stub.onTransact(IActivityManager.java:4731)
+[04:45] 	at com.android.server.am.ActivityManagerService.onTransact(ActivityManagerService.java:2630)
+[04:45] 	at android.os.Binder.execTransactInternal(Binder.java:1285)
+[04:45] 	at android.os.Binder.execTransact(Binder.java:1244)
+[04:49] [crawl] bander.notepad.TitleEdit redirected to com.android.launcher3/.uioverrides.QuickstepLauncher — not counted
+[04:53] [crawl] visiting bander.notepad.NoteList (1/7)
+[04:55] [nimo] crawl done: 1/7 activities (14.3%), 3 screens, 0 unique bugs, 4 actions
+[04:55] [nimo] pipeline report: out/pipeline_report.json (295.2s)
