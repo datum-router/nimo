@@ -1,0 +1,40 @@
+[00:00] [nimo] preflight...
+[00:00] [nimo] preflight warning: targets API 11: Android 14+ refuses to install apps targeting < 23 — use android_version 13 or lower
+[00:00] [nimo] analyzing APK...
+[00:00] [nimo] Notepad (bander.notepad v1.06)
+[00:00] [nimo] map: 7 activities, 0 deep links, 1 permissions
+[00:00] [nimo] device: emulator-5554
+[00:00] [nimo] Path A: targeted bug reproduction
+[00:00] [nimo] device: emulator-5554 | mode: repro
+[00:03] [nimo] llm: https://text.pollinations.ai/openai / openai
+[00:13] [nimo] LLM backend lost mid-run: LLM backend unavailable: https://text.pollinations.ai/openai (model openai) — HTTP 402 Payment Required: {}. Point nimo at a backend you control via NIMO_BASE_URL / NIMO_API_KEY / NIMO_MODEL, or set NIMO_BACKEND=null for a deterministic device-only run.
+[00:13] [nimo] continuing with deterministic exploration (no AI guidance). Crash detection is unaffected: the oracle needs no LLM.
+[00:13] [nimo] step 1: tap OK  (deterministic frontier: first visit to this control)
+[00:16] [nimo] step 2: tap Notepad, Navigate home  (deterministic frontier: first visit to this control)
+[00:19] [nimo] step 3: tap More options  (deterministic frontier: first visit to this control)
+[00:23] [nimo] step 4: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:26] [nimo] step 5: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:30] [nimo] step 6: back  (deterministic frontier: screen exhausted, backtracking)
+[00:33] [nimo] step 7: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:37] [nimo] step 8: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:40] [nimo] step 9: back  (deterministic frontier: screen exhausted, backtracking)
+[00:44] [nimo] step 10: tap search_icon  (deterministic frontier: first visit to this control)
+[00:47] [nimo] step 11: tap search_widget_text  (deterministic frontier: first visit to this control)
+[00:51] [nimo] step 12: tap search_src_text  (deterministic frontier: first visit to this control)
+[00:54] [nimo] step 13: tap search_voice_btn  (deterministic frontier: first visit to this control)
+[00:57] [nimo] step 14: swipe_up  (deterministic frontier: reveal controls below the fold)
+[01:01] [nimo] step 15: swipe_up  (deterministic frontier: reveal controls below the fold)
+[01:04] [nimo] step 16: back  (deterministic frontier: screen exhausted, backtracking)
+[01:08] [nimo] step 17: tap Gallery  (deterministic frontier: first visit to this control)
+[01:11] [nimo] step 18: tap Camera  (deterministic frontier: first visit to this control)
+[01:15] [nimo] step 19: tap action_bar_spinner  (deterministic frontier: first visit to this control)
+[01:18] [nimo] step 20: swipe_up  (deterministic frontier: reveal controls below the fold)
+[01:22] [nimo] step 21: swipe_up  (deterministic frontier: reveal controls below the fold)
+[01:25] [nimo] step 22: back  (deterministic frontier: screen exhausted, backtracking)
+[01:29] [nimo] step 23: tap Switch to Camera  (deterministic frontier: first visit to this control)
+[01:32] [nimo] step 24: tap App info  (deterministic frontier: first visit to this control)
+[01:36] [nimo] step 25: tap Navigate up  (deterministic frontier: first visit to this control)
+[01:37] [nimo] verdict: not_reproduced after 25 steps
+[01:37] [nimo] report: out/repro/repro_report.json
+[01:37] [nimo] Path A verdict: not_reproduced
+[01:37] [nimo] pipeline report: out/pipeline_report.json (97.5s)
