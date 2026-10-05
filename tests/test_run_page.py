@@ -217,3 +217,21 @@ def test_animation_respects_reduced_motion():
     assert "prefers-reduced-motion" in html, (
         "the live view animates; it must honour the OS setting"
     )
+
+
+def test_zero_coverage_is_distinguished_from_unmeasured_coverage():
+    """`repro` mode runs no crawl, so total is 0 and there is nothing to report.
+
+    Rendering that as a 0% ring read as a catastrophic result rather than
+    "not measured in this mode" -- and since repro is now the DEFAULT mode,
+    every first-time user would have seen it. A real 0-of-7 must still show
+    0%, so the distinction is on `total`, not on `coverage_pct`.
+    """
+    html = RUN_PAGE.read_text(encoding="utf-8")
+    assert "const measured = (s.total || 0) > 0" in html, (
+        "the page must distinguish unmeasured coverage from zero coverage"
+    )
+    assert "not measured" in html or "not\n" in html
+    assert "repro mode runs no crawl" in html, (
+        "the user must be told WHY there is no number"
+    )
