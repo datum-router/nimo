@@ -30,6 +30,11 @@ from ..llm import get_backend
 from .prompts import (DISCOVER_SYSTEM_PROMPT, SYSTEM_PROMPT,
                       render_discover_step, render_step)
 
+#: Exit code for "ran to completion, the bug did not reproduce".
+#: Distinct from 2 (argparse usage error) so CI can accept a legitimate
+#: negative result without also swallowing an invocation mistake.
+EXIT_NOT_REPRODUCED = 4
+
 MAX_STEPS = 25
 MAX_DISCOVER_BUGS = 5
 
@@ -238,7 +243,18 @@ def main() -> None:
     print(f"[nimo] wall time: {time.time() - t0:.1f}s")
     if args.discover:
         raise SystemExit(0)
-    raise SystemExit(0 if report["verdict"] == "reproduced" else 2)
+    # Exit codes are a contract, and "the bug did not reproduce" is a RESULT,
+    # not a malfunction. It used to share code 2 with argparse's usage error,
+    # which left CI unable to tell "nimo ran correctly and found nothing" from
+    # "nimo was invoked wrongly" -- so the demo workflow could not tolerate a
+    # not_reproduced verdict without also hiding real breakage.
+    #
+    #   0 reproduced (a real FATAL EXCEPTION was observed)
+    #   2 usage error (argparse's own code -- untouched)
+    #   3 LLM backend unavailable (see nimo.cli)
+    #   4 ran to completion, bug did not reproduce
+    raise SystemExit(0 if report["verdict"] == "reproduced"
+                     else EXIT_NOT_REPRODUCED)
 
 
 if __name__ == "__main__":

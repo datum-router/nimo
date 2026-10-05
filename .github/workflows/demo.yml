@@ -83,9 +83,16 @@ jobs:
           # continuation does not join lines -- `nimo repro \` executed on its
           # own and died with "the following arguments are required". Keep the
           # whole invocation on one line.
+          #
+          # For the same reason the exit-code handling must be on that SAME
+          # line: a shell variable set on one line is gone by the next, so a
+          # `case` on a following line would read an empty $code and pass
+          # everything. Exit 4 is "ran fine, bug did not reproduce" -- a
+          # result, not a malfunction. Exit 2 (usage error) and anything else
+          # still fail the job, so real breakage is never masked.
           script: |
             adb wait-for-device
-            nimo repro --apk demo/${{ matrix.demo.dir }}/app.apk --package ${{ matrix.demo.package }} --bug demo/${{ matrix.demo.dir }}/bug_report.md --out out/${{ matrix.demo.dir }}/
+            code=0; nimo repro --apk demo/${{ matrix.demo.dir }}/app.apk --package ${{ matrix.demo.package }} --bug demo/${{ matrix.demo.dir }}/bug_report.md --out out/${{ matrix.demo.dir }}/ || code=$?; echo "repro exit: $code"; case "$code" in 0) echo "REPRODUCED";; 4) echo "ran to completion; bug not reproduced (a result, not a failure)";; 3) echo "::warning::LLM backend was unavailable; the device path still ran";; *) echo "::error::nimo repro failed with exit $code"; exit "$code";; esac
 
       - name: Upload repro report
         if: always()
