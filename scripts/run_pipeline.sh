@@ -34,10 +34,17 @@ except Exception:
     old = {}
 feed = os.path.join(ws, "out", "crawl", "actions.jsonl")
 screens, counts, acts, cur = [], {}, [], ""
-try:
-    lines = open(feed).read().strip().split("\n")
-except OSError:
-    lines = []
+# Both modes now write this feed: the crawler to out/crawl and the repro
+# loop to out/repro. Reading only the crawl path left the whole live view
+# (phase, app map, action chips, tap markers) empty in repro mode -- which
+# is the default mode -- beside a log that was visibly busy.
+lines = []
+for candidate in (feed, os.path.join(ws, "out", "repro", "actions.jsonl")):
+    try:
+        lines.extend(open(candidate).read().strip().split("\n"))
+    except OSError:
+        pass
+lines = [ln for ln in lines if ln.strip()]
 for ln in lines[-400:]:
     try: a = json.loads(ln)
     except Exception: continue
@@ -51,7 +58,7 @@ for ln in lines[-400:]:
     acts.append(a)
 acts = acts[-40:]
 log = os.path.join(ws, "pipeline.log")
-phase, visited, total = "", 0, 0
+phase, visited, total, step_n = "", 0, 0, 0
 try:
     txt = open(log).read()
     import re
@@ -61,15 +68,30 @@ try:
     if m: total = int(m.group(1))
     # Lines now carry an elapsed-time prefix ("[01:23] [nimo] ..."), so the
     # phase match must not be anchored hard to the start of the line.
-    ph = re.findall(r"^(?:\[\d+:\d+\] )?\[nimo\] (Path|Analyzing|analyzing|sweep done|crawl done|intent sweep)[^\n]*",
+    #
+    # The group must span the WHOLE message. It used to wrap only the
+    # keyword alternation, and re.findall returns groups rather than whole
+    # matches -- so `phase` was literally the string "Path", which matched
+    # no label on the page and left it showing "warming up the cloud
+    # phone..." for the entire run.
+    ph = re.findall(r"^(?:\[\d+:\d+\] )?\[nimo\] ((?:Path|Analyzing|analyzing|sweep done|crawl done|intent sweep)[^\n]*)",
                     txt, re.M)
     if ph: phase = ph[-1].strip()
+    # Step progress. The crawl reports screens visited, but repro mode walks
+    # a fixed step budget and reports no screens at all, so the bar and the
+    # counter sat at zero for the default mode.
+    st = re.findall(r"\[nimo\] step (\d+):", txt)
+    if st: step_n = int(st[-1])
+    m = re.search(r"verdict: \S+ after (\d+) steps", txt)
+    if m: step_n = int(m.group(1))
 except OSError:
     pass
 d = {"status": "running",
      "phase": phase or old.get("phase") or "starting",
      "visited": visited or old.get("visited", 0),
      "total": total or old.get("total", 0),
+     "step": step_n or old.get("step", 0),
+     "step_budget": int(os.environ.get("NIMO_MAX_STEPS") or 25),
      "current_activity": cur,
      "screens": [{"a": s, "n": counts[s]} for s in screens],
      "actions": acts,

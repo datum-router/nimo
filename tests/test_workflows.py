@@ -180,3 +180,56 @@ def test_live_feed_cadence_matches_the_page():
     assert max(sleeps) <= 10, (
         f"publish interval {max(sleeps)}s is slower than the page's 6s poll"
     )
+
+
+def test_phase_capture_group_spans_the_whole_message():
+    """The live phase label was the bare word "Path" for every run.
+
+    re.findall returns GROUPS, not whole matches, and the group wrapped only
+    the keyword alternation. "Path" matched no label on the page, so it fell
+    through to "warming up the cloud phone..." and stayed there while the
+    log was visibly busy -- which is what the operator reported as the page
+    showing nothing.
+    """
+    sh = (REPO / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    assert "((?:Path|" in sh, (
+        "the capture group must span the whole phase message, not just the "
+        "keyword alternation"
+    )
+    import re as _re
+    pat = _re.search(r'ph = re\.findall\(r"([^"]+)"', sh)
+    assert pat, "phase regex not found"
+    rx = _re.compile(pat.group(1), _re.M)
+    got = rx.findall("[00:03] [nimo] Path A: targeted bug reproduction\n")
+    assert got == ["Path A: targeted bug reproduction"], (
+        f"phase parsed as {got!r} instead of the full message"
+    )
+
+
+def test_progress_reads_both_action_feeds():
+    """repro mode writes out/repro/actions.jsonl, the crawl out/crawl/.
+
+    Reading only the crawl path left the app map, action chips and tap
+    markers empty in repro mode -- which is the default mode.
+    """
+    sh = (REPO / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    assert '"out", "repro", "actions.jsonl"' in sh, (
+        "the live view must read the repro feed too"
+    )
+
+
+def test_progress_reports_step_progress_not_only_screens():
+    sh = (REPO / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    assert '"step"' in sh and "step_budget" in sh, (
+        "repro mode visits no screens, so progress must be reported in steps"
+    )
+
+
+def test_repro_writes_the_live_action_feed():
+    src = (REPO / "src" / "nimo" / "engine" / "repro.py").read_text(
+        encoding="utf-8")
+    assert "actions.ActionFeed(out_dir)" in src, (
+        "repro must write the same feed the crawler does, so the hosted "
+        "page needs no mode-specific branch"
+    )
+    assert "feed.record(" in src
