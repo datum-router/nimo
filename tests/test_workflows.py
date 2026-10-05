@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 WORKFLOWS = Path(__file__).resolve().parents[1] / ".github" / "workflows"
+REPO = Path(__file__).resolve().parents[1]
 EMULATOR_ACTION = "reactivecircus/android-emulator-runner"
 
 
@@ -120,3 +121,62 @@ def test_demo_handles_exit_codes_on_one_line():
         assert 'exit "$code"' in ln, (
             "an unrecognised exit code must still fail the job"
         )
+
+
+def test_pipeline_log_lines_are_timestamped():
+    """"Why is it slow?" must be answerable from the log alone.
+
+    The log had no clock, so the 170s discovery crawl and the 48s the backend
+    spent retrying looked identical to fast steps. Each line now carries
+    [mm:ss] since the pipeline started.
+    """
+    sh = (REPO / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    assert "%02d:%02d" in sh, "log lines must carry an elapsed-time prefix"
+    assert "python3 -u -c" in sh, (
+        "the timestamper must be unbuffered, or the live log arrives in "
+        "4 KB bursts instead of line by line"
+    )
+    # Checked against CODE only: the comment above the timestamper names
+    # systime()/strftime() to explain why they are not used, and asserting on
+    # the raw file would fail on its own documentation.
+    code = "\n".join(ln for ln in sh.splitlines()
+                     if not ln.lstrip().startswith("#"))
+    assert "systime(" not in code, (
+        "systime()/strftime() are gawk extensions and the Ubuntu runners "
+        "ship mawk, where the timestamper would silently emit nothing"
+    )
+
+def test_timestamping_does_not_break_the_exit_code_contract():
+    """Adding a pipe stage must not cost us the false-green fix.
+
+    redroid-test #23 reported success over a run whose pipeline had died.
+    PIPESTATUS[0] still refers to `timeout`/nimo after the timestamper is
+    inserted -- but only because it is element ZERO, which is exactly the
+    kind of thing a later refactor breaks silently.
+    """
+    sh = (REPO / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    assert "STATUS=${PIPESTATUS[0]}" in sh
+    line = next(ln for ln in sh.splitlines() if "nimo pipeline" in ln)
+    assert line.strip().startswith("timeout "), (
+        "nimo must stay the FIRST stage of the pipe, or PIPESTATUS[0] "
+        "reports the timestamper's status instead of the pipeline's"
+    )
+
+
+def test_phase_parser_tolerates_the_timestamp_prefix():
+    """The live phase label is parsed from the log; the prefix must not blind it."""
+    sh = (REPO / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    assert r"^(?:\[\d+:\d+\] )?\[nimo\]" in sh, (
+        "the phase regex must accept an optional timestamp prefix"
+    )
+
+
+def test_live_feed_cadence_matches_the_page():
+    """A 20s publish against 6s polling wasted the page's responsiveness."""
+    sh = (REPO / "scripts" / "run_pipeline.sh").read_text(encoding="utf-8")
+    pusher = sh.split("PUSHER=$!")[0]
+    sleeps = [int(m) for m in re.findall(r"sleep (\d+)", pusher)]
+    assert sleeps, "the publisher must have a sleep interval"
+    assert max(sleeps) <= 10, (
+        f"publish interval {max(sleeps)}s is slower than the page's 6s poll"
+    )

@@ -270,6 +270,26 @@ jobs:
           # Informational only: never fail the run just because the probe is odd.
           ls -l /dev/kvm || echo "no /dev/kvm on this runner — emulator will be slow"
 
+      # Cache the SDK pieces the emulator action would otherwise re-download
+      # on every run. Measured in run #28: accepting licences, build-tools,
+      # platform-tools, the emulator and the x86_64 system image cost 51s
+      # before the AVD was even created -- a third of the pre-test setup.
+      #
+      # Safe by construction: a cache MISS leaves the action to install
+      # everything exactly as it does today, so the worst case is the current
+      # behaviour plus a failed lookup. Keyed on the API level and target, so
+      # an APK that needs a different Android version gets its own entry
+      # instead of a stale one.
+      - name: Cache Android SDK + AVD
+        if: steps.binder.outputs.available != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk/system-images
+            /usr/local/lib/android/sdk/emulator
+            ~/.android/avd
+          key: android-sdk-${{ runner.os }}-${{ runner.arch }}-api${{ steps.env.outputs.api_level }}-${{ steps.env.outputs.target }}-x86_64
+
       # NOTE: the emulator is killed when this step ends, so the whole
       # pipeline runs INSIDE the boot script while the device is alive.
       - name: Boot emulator and run pipeline (fallback)
@@ -288,7 +308,11 @@ jobs:
           # initialized") if it tries to open a window. Overriding
           # emulator-options replaces the action's defaults, so it has to be
           # repeated here rather than inherited.
-          emulator-options: -no-window -no-snapshot-save -noaudio -no-boot-anim -camera-back none -gpu swiftshader_indirect
+          #
+          # -no-snapshot-load forces a clean boot: a cached AVD must never
+          # let one run's app state leak into the next, which would make a
+          # verdict depend on what ran before it.
+          emulator-options: -no-window -no-snapshot-save -no-snapshot-load -noaudio -no-boot-anim -camera-back none -gpu swiftshader_indirect
           # NOTE: this action executes the script line-by-line, so the whole
           # invocation must be a single line (no backslash continuations).
           script: adb -s emulator-5554 wait-for-device && bash "$GITHUB_WORKSPACE/scripts/run_pipeline.sh" emulator emulator-5554 "${{ steps.env.outputs.android_version }}" "${{ steps.env.outputs.arch }}" "${{ inputs.max_minutes }}" "${{ inputs.mode }}" "${{ steps.bug.outputs.has_bug }}"

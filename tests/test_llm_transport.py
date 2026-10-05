@@ -272,7 +272,8 @@ def test_backend_degrades_mid_run_instead_of_aborting(monkeypatch):
                                    retries=1, backoff=0))
     assert b.degraded is False
     first = json.loads(b.chat([{"role": "user", "content": "hi"}]))
-    assert first["action"] == "back", "must serve a usable action, not raise"
+    assert first["action"] in {"tap", "swipe_up", "back"}, (
+        "must serve a usable navigation action, not raise")
     assert b.degraded is True
     assert b.model == "null", "a degraded backend must report itself as null"
 
@@ -309,14 +310,154 @@ def test_degradation_is_recorded_process_wide(monkeypatch):
 def test_degraded_run_cannot_invent_a_bug():
     """The honesty invariant must survive degradation.
 
-    A degraded run loses navigation, not integrity: the null backend only
-    ever emits an inert action, so no crash can originate from it.
+    This used to assert the fallback stayed inert (`{"action": "back"}`).
+    Inertness was never the guarantee -- and it was actively harmful, since
+    it meant a degraded run explored nothing. The real invariant is that the
+    fallback only ever emits NAVIGATION: it can move around the app, but it
+    has no vocabulary for claiming a finding. Verdicts come solely from the
+    oracle observing a real FATAL EXCEPTION, which consults no backend.
     """
     from nimo.llm import NullBackend
 
-    out = json.loads(NullBackend().chat([{"role": "user", "content": "x"}]))
-    assert out == {"action": "back"}, "the null backend must stay inert"
-    assert "crash" not in json.dumps(out).lower()
+    navigation = {"tap", "swipe_up", "swipe_down", "back", "long_press", "type"}
+    b = NullBackend()
+    b.observe([
+        {"label": "New note", "resource_id": "id/new", "class": "Button",
+         "x": 10, "y": 20, "clickable": True},
+    ])
+    emitted = []
+    for _ in range(8):
+        out = json.loads(b.chat([{"role": "user", "content": "x"}]))
+        emitted.append(out["action"])
+        assert out["action"] in navigation, (
+            f"fallback emitted {out['action']!r}, which is not navigation"
+        )
+        blob = json.dumps(out).lower()
+        for forbidden in ("crash", "reproduced", "verdict", "fatal", "bug"):
+            assert forbidden not in blob, (
+                f"fallback must not be able to express {forbidden!r}"
+            )
+    assert "tap" in emitted, "a labelled clickable must actually be visited"
+
+
+def test_deterministic_fallback_actually_explores():
+    """The fallback must visit controls, not press Back in place.
+
+    CI run #28, with the backend degraded: twenty-five consecutive `back`
+    actions, 82 seconds of booted emulator, nothing visited beyond the
+    launch activity. The verdict was honest but the evidence behind it was
+    empty, which is its own kind of useless.
+    """
+    from nimo.llm import NullBackend
+
+    screen = [
+        {"label": "New note", "resource_id": "id/new", "class": "Button",
+         "x": 10, "y": 20, "clickable": True},
+        {"label": "Settings", "resource_id": "id/prefs", "class": "Button",
+         "x": 30, "y": 40, "clickable": True},
+        {"label": "Heading", "resource_id": "id/h", "class": "TextView",
+         "x": 5, "y": 5, "clickable": False},
+    ]
+    b = NullBackend()
+    actions = []
+    for _ in range(6):
+        b.observe(screen)
+        actions.append(json.loads(b.chat([])))
+
+    taps = [a["label"] for a in actions if a["action"] == "tap"]
+    assert taps == ["New note", "Settings"], (
+        f"must tap each labelled clickable exactly once, got {taps}"
+    )
+    assert "Heading" not in taps, "a non-clickable must not be tapped"
+    # Frontier exhausted: scroll for more, then backtrack. Never a stuck loop.
+    assert [a["action"] for a in actions[2:]] == [
+        "swipe_up", "swipe_up", "back", "back"]
+
+
+def test_fallback_remembers_controls_across_reflows():
+    """Identity, not position -- a reflowing list is not new ground."""
+    from nimo.llm import NullBackend
+
+    b = NullBackend()
+    b.observe([{"label": "Item", "resource_id": "id/a", "class": "Button",
+                "x": 10, "y": 100, "clickable": True}])
+    assert json.loads(b.chat([]))["action"] == "tap"
+    # Same control, moved down the screen after a reflow.
+    b.observe([{"label": "Item", "resource_id": "id/a", "class": "Button",
+                "x": 10, "y": 400, "clickable": True}])
+    assert json.loads(b.chat([]))["action"] != "tap", (
+        "a control already visited must not be re-tapped because it moved"
+    )
+
+
+def test_unlabelled_controls_are_not_tapped():
+    """The executor resolves a tap BY LABEL; an unlabelled target is a no-op.
+
+    Emitting one would spend a step and move nothing, which is precisely the
+    wasted motion this explorer exists to stop.
+    """
+    from nimo.llm import NullBackend
+
+    b = NullBackend()
+    b.observe([{"label": "", "resource_id": "", "class": "FrameLayout",
+                "x": 1, "y": 2, "clickable": True}])
+    assert json.loads(b.chat([]))["action"] != "tap"
+
+
+def test_anonymous_backend_degrades_without_a_long_stall(monkeypatch):
+    """Degrading must be fast -- it is free, so waiting buys nothing.
+
+    LLMClient defaults to 5 retries with exponential backoff: ~48s, measured
+    as exactly that in CI run #28 before the fallback took over. Inside a
+    device loop that is 48s of booted emulator spent on a decision the
+    wrapper can make instantly.
+    """
+    from nimo.llm import ResilientBackend
+
+    anon = LLMClient(base_url="https://x.invalid", api_key="")
+    assert anon.retries == 5, "the bare client keeps its own default"
+    ResilientBackend(anon)
+    assert anon.retries <= 2, (
+        "an anonymous free tier must not stall the device loop before "
+        "falling back"
+    )
+
+    # A paying operator is left alone: degrading forfeits the real verdicts
+    # they are paying for, so riding out a blip is worth the wait.
+    keyed = LLMClient(base_url="https://x.invalid", api_key="sk-real")
+    ResilientBackend(keyed)
+    assert keyed.retries == 5, "a keyed provider must keep its full budget"
+
+
+def test_observations_reach_the_fallback_through_the_wrapper():
+    """The wrapper must forward observations while the primary is healthy.
+
+    A map that only starts filling at the moment of failure would re-walk
+    everything the guided half of the run already covered.
+    """
+    from nimo.llm import ResilientBackend
+
+    b = ResilientBackend(LLMClient(base_url="https://x.invalid"))
+    b.observe([{"label": "Go", "resource_id": "id/go", "class": "Button",
+                "x": 1, "y": 2, "clickable": True}])
+    b.degraded = True  # simulate the outage having happened
+    assert json.loads(b.chat([]))["label"] == "Go", (
+        "the fallback must already know the screen it inherits"
+    )
+
+
+def test_engine_hands_the_ui_dump_to_the_backend():
+    """repro must call observe(), or the explorer is blind.
+
+    Without this the fallback cannot see a single control and degrades to
+    the old scroll/back behaviour -- the bug would come back silently, with
+    every unit test above still passing.
+    """
+    src = (REPO / "src" / "nimo" / "engine" / "repro.py").read_text(
+        encoding="utf-8")
+    assert 'getattr(llm, "observe"' in src and "observe(elements)" in src, (
+        "repro.reproduce must forward the UI dump to the backend"
+    )
 
 
 def test_fallback_can_be_disabled(monkeypatch):
@@ -342,7 +483,8 @@ def test_report_states_whether_guidance_survived():
 
 def test_null_backend_needs_no_network():
     b = get_backend("null")
-    assert json.loads(b.chat([{"role": "user", "content": "hi"}]))["action"] == "back"
+    assert json.loads(b.chat([{"role": "user", "content": "hi"}]))["action"] in {
+        "tap", "swipe_up", "back"}
 
 
 def test_run_pipeline_propagates_the_pipeline_exit_code():

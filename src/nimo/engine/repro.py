@@ -99,6 +99,13 @@ def reproduce(apk: str, package: str, bug_report: str | None, out_dir: str,
             user_msg = render_discover_step(package, elements, history, len(bugs_found))
         else:
             user_msg = render_step(report_text, elements, history)
+        # Hand the raw dump to the backend as well as the rendered prompt.
+        # A network model reads the prompt; the deterministic fallback needs
+        # the structured elements to pick an unvisited control. Optional by
+        # design -- a plain LLMClient has no `observe` and ignores this.
+        observe = getattr(llm, "observe", None)
+        if callable(observe):
+            observe(elements)
         action_raw = llm.chat(
             [
                 {"role": "system", "content": system},
