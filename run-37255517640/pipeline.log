@@ -1,0 +1,58 @@
+[00:00] [nimo] preflight...
+[00:00] [nimo] preflight warning: targets API 11: Android 14+ refuses to install apps targeting < 23 — use android_version 13 or lower
+[00:00] [nimo] analyzing APK...
+[00:00] [nimo] Notepad (bander.notepad v1.06)
+[00:00] [nimo] map: 7 activities, 0 deep links, 1 permissions
+[00:00] [nimo] device: emulator-5554
+[00:00] [nimo] Path A: targeted bug reproduction
+[00:01] [nimo] device: emulator-5554 | mode: repro
+[00:03] [nimo] llm: https://text.pollinations.ai/openai / openai
+[00:13] [nimo] LLM backend lost mid-run: LLM backend unavailable: https://text.pollinations.ai/openai (model openai) — HTTP 402 Payment Required: {}. Point nimo at a backend you control via NIMO_BASE_URL / NIMO_API_KEY / NIMO_MODEL, or set NIMO_BACKEND=null for a deterministic device-only run.
+[00:13] [nimo] continuing with deterministic exploration (no AI guidance). Crash detection is unaffected: the oracle needs no LLM.
+[00:13] [nimo] step 1: tap OK  (deterministic frontier: first visit to this control)
+[00:16] [nimo] step 2: tap More options  (deterministic frontier: first visit to this control)
+[00:19] [nimo] step 3: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:23] [nimo] step 4: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:26] [nimo] step 5: back  (deterministic frontier: screen exhausted, backtracking)
+[00:29] [nimo] step 6: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:33] [nimo] step 7: swipe_up  (deterministic frontier: reveal controls below the fold)
+[00:36] [nimo] step 8: back  (deterministic frontier: screen exhausted, backtracking)
+[00:38] [nimo] step 8 left the app (now com.android.launcher3) — relaunching bander.notepad
+[00:42] [nimo] step 9: back  (deterministic frontier: screen exhausted, backtracking)
+[00:43] [nimo] step 9 left the app (now com.android.launcher3) — relaunching bander.notepad
+[00:47] [nimo] step 10: back  (deterministic frontier: screen exhausted, backtracking)
+[00:49] [nimo] step 10 left the app (now com.android.launcher3) — relaunching bander.notepad
+[00:53] [nimo] step 11: back  (deterministic frontier: screen exhausted, backtracking)
+[00:54] [nimo] step 11 left the app (now com.android.launcher3) — relaunching bander.notepad
+[00:58] [nimo] step 12: back  (deterministic frontier: screen exhausted, backtracking)
+[00:59] [nimo] step 12 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:03] [nimo] step 13: back  (deterministic frontier: screen exhausted, backtracking)
+[01:05] [nimo] step 13 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:09] [nimo] step 14: back  (deterministic frontier: screen exhausted, backtracking)
+[01:10] [nimo] step 14 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:14] [nimo] step 15: back  (deterministic frontier: screen exhausted, backtracking)
+[01:16] [nimo] step 15 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:20] [nimo] step 16: back  (deterministic frontier: screen exhausted, backtracking)
+[01:21] [nimo] step 16 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:25] [nimo] step 17: back  (deterministic frontier: screen exhausted, backtracking)
+[01:26] [nimo] step 17 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:30] [nimo] step 18: back  (deterministic frontier: screen exhausted, backtracking)
+[01:32] [nimo] step 18 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:36] [nimo] step 19: back  (deterministic frontier: screen exhausted, backtracking)
+[01:37] [nimo] step 19 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:41] [nimo] step 20: back  (deterministic frontier: screen exhausted, backtracking)
+[01:42] [nimo] step 20 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:47] [nimo] step 21: back  (deterministic frontier: screen exhausted, backtracking)
+[01:48] [nimo] step 21 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:52] [nimo] step 22: back  (deterministic frontier: screen exhausted, backtracking)
+[01:53] [nimo] step 22 left the app (now com.android.launcher3) — relaunching bander.notepad
+[01:57] [nimo] step 23: back  (deterministic frontier: screen exhausted, backtracking)
+[01:59] [nimo] step 23 left the app (now com.android.launcher3) — relaunching bander.notepad
+[02:03] [nimo] step 24: back  (deterministic frontier: screen exhausted, backtracking)
+[02:04] [nimo] step 24 left the app (now com.android.launcher3) — relaunching bander.notepad
+[02:08] [nimo] step 25: back  (deterministic frontier: screen exhausted, backtracking)
+[02:10] [nimo] step 25 left the app (now com.android.launcher3) — relaunching bander.notepad
+[02:12] [nimo] verdict: not_reproduced after 25 steps
+[02:12] [nimo] report: out/repro/repro_report.json
+[02:12] [nimo] Path A verdict: not_reproduced
+[02:12] [nimo] pipeline report: out/pipeline_report.json (132.3s)
